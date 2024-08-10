@@ -47,8 +47,10 @@ pub fn main() !void {
         \\
         \\layout (location = 0) in vec3 aPos;
         \\
+        \\uniform mat4 transform;
+        \\
         \\void main() {
-        \\   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
+        \\   gl_Position = transform * vec4(aPos, 1.0);
         \\}
     ;
     gl.ShaderSource(vertex_shader, 1, &[1][*]const u8 { vertex_shader_source }, null);
@@ -81,16 +83,48 @@ pub fn main() !void {
     gl.LinkProgram(shader_program);
     gl.UseProgram(shader_program);
 
-    // linking vertex attributes
+    // link vertex attributes
 
     gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * @sizeOf(f32), 0);
     gl.EnableVertexAttribArray(0);
+
+    // transformations
+
+    const transform_matrix = [_]f32 {
+        1, 0, 0, 1,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    };
+
+    const transform_location = gl.GetUniformLocation(shader_program, "transform");
+    gl.UniformMatrix4fv(transform_location, 1, gl.TRUE, &transform_matrix);
+
+
+    // main loop
+
+    var stdout = std.io.getStdOut().writer();
+
+    var frame_count: i64 = 0;
+    var start_time = std.time.microTimestamp();
 
     while (!glfw.windowShouldClose(window)) {
         gl.ClearColor(0, 0, 255, 1);
         gl.Clear(gl.COLOR_BUFFER_BIT);
 
         gl.DrawArrays(gl.TRIANGLES, 0, 3);
+
+        frame_count +=1;
+        const current_time = std.time.microTimestamp();
+        const elasped_time = current_time - start_time;
+
+        if (elasped_time >= 1_000_000) {
+            const fps = @divTrunc(frame_count * 1_000_000, elasped_time);
+            try stdout.print("fps: {}\n", .{fps});
+
+            start_time = current_time;
+            frame_count = 0;
+        }
 
         glfw.swapBuffers(window);
         glfw.pollEvents();
