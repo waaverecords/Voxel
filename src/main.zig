@@ -1,6 +1,10 @@
 const std = @import("std");
 const gl = @import("gl");
 const glfw = @import("glfw");
+const math = @import("math.zig");
+
+const windowWidth = 800;
+const widonwHeight = 640;
 
 pub fn main() !void {
     try glfw.init();
@@ -8,7 +12,7 @@ pub fn main() !void {
 
     glfw.windowHint(glfw.Resizable, 0);
 
-    const window: *glfw.Window = try glfw.createWindow(800, 640, "Voxel", null, null);
+    const window: *glfw.Window = try glfw.createWindow(windowWidth, widonwHeight, "Voxel", null, null);
     defer glfw.destroyWindow(window);
 
     glfw.makeContextCurrent(window);
@@ -47,10 +51,12 @@ pub fn main() !void {
         \\
         \\layout (location = 0) in vec3 aPos;
         \\
-        \\uniform mat4 transform;
+        \\uniform mat4 model;
+        \\uniform mat4 view;
+        \\uniform mat4 projection;
         \\
         \\void main() {
-        \\   gl_Position = transform * vec4(aPos, 1.0);
+        \\   gl_Position = projection * view * model * vec4(aPos, 1.0);
         \\}
     ;
     gl.ShaderSource(vertex_shader, 1, &[1][*]const u8 { vertex_shader_source }, null);
@@ -80,6 +86,7 @@ pub fn main() !void {
 
     gl.AttachShader(shader_program, vertex_shader);
     gl.AttachShader(shader_program, fragment_shader);
+
     gl.LinkProgram(shader_program);
     gl.UseProgram(shader_program);
 
@@ -88,18 +95,19 @@ pub fn main() !void {
     gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * @sizeOf(f32), 0);
     gl.EnableVertexAttribArray(0);
 
-    // transformations
+    // coordinate systems
 
-    const transform_matrix = [_]f32 {
-        1, 0, 0, 1,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1
-    };
+    const model_matrix = math.Mat4.Rotation(std.math.degreesToRadians(45), math.Vec3.New(1, 1, 0));
+    const model_location = gl.GetUniformLocation(shader_program, "model");
+    gl.UniformMatrix4fv(model_location, 1, gl.TRUE, &model_matrix.data);
 
-    const transform_location = gl.GetUniformLocation(shader_program, "transform");
-    gl.UniformMatrix4fv(transform_location, 1, gl.TRUE, &transform_matrix);
+    const view_matrix = math.Mat4.Translation(math.Vec3.New(0, 0, -10));
+    const view_location = gl.GetUniformLocation(shader_program, "view");
+    gl.UniformMatrix4fv(view_location, 1, gl.TRUE, &view_matrix.data);
 
+    const projection_matrix = math.Mat4.Perspective(std.math.degreesToRadians(45), windowWidth / widonwHeight, 0.1, 100);
+    const projection_location = gl.GetUniformLocation(shader_program, "projection");
+    gl.UniformMatrix4fv(projection_location, 1, gl.TRUE, &projection_matrix.data);
 
     // main loop
 
