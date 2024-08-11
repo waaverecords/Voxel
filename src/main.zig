@@ -3,6 +3,7 @@ const gl = @import("gl");
 const glfw = @import("glfw");
 const math = @import("math.zig");
 const Camera = @import("camera.zig").Camera;
+const EntitiesStorage = @import("ecs.zig").EntitiesStorage;
 
 const windowWidth = 800;
 const widonwHeight = 640;
@@ -125,6 +126,10 @@ pub fn main() !void {
     var start_time = std.time.microTimestamp();
 
     const camera_speed = 0.05;
+
+    const allocator = std.heap.c_allocator;
+    var entities = try EntitiesStorage.init(allocator);
+    defer entities.deinit();
 
     while (!glfw.windowShouldClose(window)) {
 
