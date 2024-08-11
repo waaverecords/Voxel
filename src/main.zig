@@ -97,11 +97,11 @@ pub fn main() !void {
 
     // coordinate systems
 
-    const model_matrix = math.Mat4.Rotation(std.math.degreesToRadians(45), math.Vec3.New(1, 1, 0));
+    var model_matrix = math.Mat4.Rotation(std.math.degreesToRadians(0), math.Vec3.Init(0, 0, 0));
     const model_location = gl.GetUniformLocation(shader_program, "model");
     gl.UniformMatrix4fv(model_location, 1, gl.TRUE, &model_matrix.data);
 
-    const view_matrix = math.Mat4.Translation(math.Vec3.New(0, 0, -10));
+    var view_matrix = math.Mat4.LookAt(math.Vec3.Init(-2, 0, 2), math.Vec3.Init(0, 0, 0), math.Vec3.UnitY());
     const view_location = gl.GetUniformLocation(shader_program, "view");
     gl.UniformMatrix4fv(view_location, 1, gl.TRUE, &view_matrix.data);
 

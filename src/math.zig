@@ -4,14 +4,55 @@ const gl = @import("gl");
 pub const Vec3 = struct {
     data: [3]f32 = .{0} ** 3,
 
-    pub fn New(x: f32, y: f32, z: f32) Vec3 {
+    pub fn Init(x: f32, y: f32, z: f32) Vec3 {
         return Vec3 {
             .data = .{ x, y, z }
         };
     }
 
+    pub fn UnitX() Vec3 {
+        return Vec3.Init(1, 0, 0);
+    }
+
+    pub fn UnitY() Vec3 {
+        return Vec3.Init(0, 1, 0);
+    }
+
     pub fn UnitZ() Vec3 {
-        return Vec3.New(0, 0, 1);
+        return Vec3.Init(0, 0, 1);
+    }
+
+    pub fn Substract(vecA: Vec3, vecB: Vec3) Vec3 {
+        return Vec3.Init(
+            vecA.data[0] - vecB.data[0],
+            vecA.data[1] - vecB.data[1],
+            vecA.data[2] - vecB.data[2]
+        );
+    }
+
+    pub fn Cross(vecA: Vec3, vecB: Vec3) Vec3 {
+        return Vec3.Init(
+            vecA.data[1] * vecB.data[2] - vecA.data[2] * vecB.data[1],
+            vecA.data[2] * vecB.data[0] - vecA.data[0] * vecB.data[2],
+            vecA.data[0] * vecB.data[1] - vecA.data[1] * vecB.data[0]
+        );
+    }
+
+    pub fn Normalize(vec: Vec3) Vec3 {
+        const x = vec.data[0];
+        const y = vec.data[1];
+        const z = vec.data[2];
+
+        const length = @sqrt(x * x + y * y + z * z);
+
+        if (length == 0)
+            return Vec3 {};
+
+        return Vec3.Init(x / length, y / length, z / length);
+    }
+
+    pub fn Invert(vec: Vec3) Vec3 {
+        return Vec3.Init(-vec.data[0], -vec.data[1], -vec.data[2]);
     }
 };
 
@@ -33,18 +74,32 @@ pub const Mat4 = struct {
         return Mat4.Scalar(1);
     }
 
+    pub fn Multiply(matrixA: Mat4, matrixB: Mat4) Mat4 {
+        var result = Mat4.Scalar(0);
+
+        for (0..4) |i| {
+            for (0..4) |j| {
+                var sum: f32 = 0;
+                for (0..4) |k| {
+                    sum += matrixA.data[i * 4 + k] * matrixB.data[k * 4 + j];
+                }
+                result.data[i * 4 + j] = sum;
+            }
+        }
+
+        return result;
+    }
+
     pub fn Rotation(radians: f32, axis: Vec3) Mat4 {
         const c = @cos(radians);
         const s = @sin(radians);
         const t = 1.0 - c;
-        const x = axis.data[0];
-        const y = axis.data[1];
-        const z = axis.data[2];
 
-        const length = @sqrt(x * x + y * y + z * z);
-        const nx = x / length;
-        const ny = y / length;
-        const nz = z / length;
+        const normalized_axis = Vec3.Normalize(axis);
+
+        const nx = normalized_axis.data[0];
+        const ny = normalized_axis.data[1];
+        const nz = normalized_axis.data[2];
 
         return Mat4{
             .data = .{
@@ -84,20 +139,21 @@ pub const Mat4 = struct {
             },
         };
     }
+
+    pub fn LookAt(position: Vec3, target: Vec3, up: Vec3) Mat4 {
+        const cam_direction = Vec3.Substract(position, target).Normalize();
+        const cam_right = Vec3.Cross(up, cam_direction).Normalize();
+        const cam_up = Vec3.Cross(cam_direction, cam_right);
+
+        const coord_space = Mat4 {
+            .data = .{
+                cam_right.data[0], cam_right.data[1], cam_right.data[2], 0,
+                cam_up.data[0], cam_up.data[1], cam_up.data[2], 0,
+                cam_direction.data[0], cam_direction.data[1], cam_direction.data[2], 0,
+                0, 0, 0, 1
+            }
+        };
+
+        return Mat4.Multiply(coord_space, Mat4.Translation(position.Invert()));
+    }
 };
-
-// pub fn Multiply(matrixA: Mat4, matrixB: Mat4) Mat4 {
-//     var result = Mat4.Scalar(0);
-
-//     for (0..4) |i| {
-//         for (0..4) |j| {
-//             var sum: f32 = 0;
-//             for (0..4) |k| {
-//                 sum += matrixA.data[i * 4 + k] * matrixB.data[k * 4 + j];
-//             }
-//             result.data[i * 4 + j] = sum;
-//         }
-//     }
-
-//     return result;
-// }
