@@ -22,11 +22,23 @@ pub const Vec3 = struct {
         return Vec3.Init(0, 0, 1);
     }
 
-    pub fn Substract(vecA: Vec3, vecB: Vec3) Vec3 {
+    pub fn Add(vecA: Vec3, vecB: Vec3) Vec3 {
         return Vec3.Init(
-            vecA.data[0] - vecB.data[0],
-            vecA.data[1] - vecB.data[1],
-            vecA.data[2] - vecB.data[2]
+            vecA.data[0] + vecB.data[0],
+            vecA.data[1] + vecB.data[1],
+            vecA.data[2] + vecB.data[2]
+        );
+    }
+
+    pub fn Substract(vecA: Vec3, vecB: Vec3) Vec3 {
+        return Vec3.Add(vecA, vecB.Invert());
+    }
+
+    pub fn Multiply(vec: Vec3, scalar: f32) Vec3 {
+        return Vec3.Init(
+            vec.data[0] * scalar, 
+            vec.data[1] * scalar, 
+            vec.data[2] * scalar
         );
     }
 
@@ -46,7 +58,7 @@ pub const Vec3 = struct {
         const length = @sqrt(x * x + y * y + z * z);
 
         if (length == 0)
-            return Vec3 {};
+            return Vec3{};
 
         return Vec3.Init(x / length, y / length, z / length);
     }

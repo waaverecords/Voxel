@@ -15,6 +15,9 @@ pub fn main() !void {
     const window: *glfw.Window = try glfw.createWindow(windowWidth, widonwHeight, "Voxel", null, null);
     defer glfw.destroyWindow(window);
 
+    glfw.setInputMode(window, glfw.Cursor, glfw.CursorDisabled);
+    _ = glfw.setCursorPosCallback(window, &onMouseMoved);
+
     glfw.makeContextCurrent(window);
     defer glfw.makeContextCurrent(null);
 
@@ -51,12 +54,15 @@ pub fn main() !void {
         \\
         \\layout (location = 0) in vec3 aPos;
         \\
+        \\out vec3 color;
+        \\
         \\uniform mat4 model;
         \\uniform mat4 view;
         \\uniform mat4 projection;
         \\
         \\void main() {
         \\   gl_Position = projection * view * model * vec4(aPos, 1.0);
+        \\   color = aPos;
         \\}
     ;
     gl.ShaderSource(vertex_shader, 1, &[1][*]const u8 { vertex_shader_source }, null);
@@ -70,10 +76,12 @@ pub fn main() !void {
     const fragment_shader_source =
         \\#version 330 core
         \\
+        \\in vec3 color;
+        \\
         \\out vec4 FragColor;
         \\
         \\void main() {
-        \\    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+        \\    FragColor = vec4(color, 1.0f);
         \\}
     ;
     gl.ShaderSource(fragment_shader, 1, &[1][*]const u8 { fragment_shader_source}, null);
@@ -101,24 +109,56 @@ pub fn main() !void {
     const model_location = gl.GetUniformLocation(shader_program, "model");
     gl.UniformMatrix4fv(model_location, 1, gl.TRUE, &model_matrix.data);
 
-    var view_matrix = math.Mat4.LookAt(math.Vec3.Init(-2, 0, 2), math.Vec3.Init(0, 0, 0), math.Vec3.UnitY());
-    const view_location = gl.GetUniformLocation(shader_program, "view");
-    gl.UniformMatrix4fv(view_location, 1, gl.TRUE, &view_matrix.data);
-
     const projection_matrix = math.Mat4.Perspective(std.math.degreesToRadians(45), windowWidth / widonwHeight, 0.1, 100);
     const projection_location = gl.GetUniformLocation(shader_program, "projection");
     gl.UniformMatrix4fv(projection_location, 1, gl.TRUE, &projection_matrix.data);
 
+    // camera
+
+    var camera_position = math.Vec3.Init(0, 0, 2);
+    const camera_up = math.Vec3.UnitY();
+    const camera_speed = 0.05;
+
     // main loop
 
     var stdout = std.io.getStdOut().writer();
+    gl.Enable(gl.DEPTH_TEST);
 
     var frame_count: i64 = 0;
     var start_time = std.time.microTimestamp();
 
     while (!glfw.windowShouldClose(window)) {
+
+        // inputs
+
+        if (glfw.getKey(window, glfw.KeyEscape) == glfw.Press) {
+            glfw.setWindowShouldClose(window, true);
+            continue;
+        }
+
+        const camera_direction = math.Vec3.Init(
+            @cos(std.math.degreesToRadians(camera_yaw)) * @cos(std.math.degreesToRadians(camera_pitch)),
+            @sin(std.math.degreesToRadians(camera_pitch)),
+            @sin(std.math.degreesToRadians(camera_yaw)) * @cos(std.math.degreesToRadians(camera_pitch))
+        ).Normalize();
+
+        if (glfw.getKey(window, glfw.KeyW) == glfw.Press)
+            camera_position = camera_position.Add(camera_direction.Multiply(camera_speed));
+        if (glfw.getKey(window, glfw.KeyS) == glfw.Press)
+            camera_position = camera_position.Substract(camera_direction.Multiply(camera_speed));
+        if (glfw.getKey(window, glfw.KeyA) == glfw.Press)
+            camera_position = camera_position.Substract(math.Vec3.Cross(camera_direction, camera_up).Normalize().Multiply(camera_speed));
+        if (glfw.getKey(window, glfw.KeyD) == glfw.Press)
+            camera_position = camera_position.Add(math.Vec3.Cross(camera_direction, camera_up).Normalize().Multiply(camera_speed));
+
+        var view_matrix = math.Mat4.LookAt(camera_position, math.Vec3.Add(camera_position, camera_direction), camera_up);
+        const view_location = gl.GetUniformLocation(shader_program, "view");
+        gl.UniformMatrix4fv(view_location, 1, gl.TRUE, &view_matrix.data);
+
+        // rendering
+
         gl.ClearColor(0, 0, 255, 1);
-        gl.Clear(gl.COLOR_BUFFER_BIT);
+        gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         gl.DrawArrays(gl.TRIANGLES, 0, 3);
 
@@ -137,4 +177,39 @@ pub fn main() !void {
         glfw.swapBuffers(window);
         glfw.pollEvents();
     }
+}
+
+var camera_yaw: f32 = -90;
+var camera_pitch: f32 = 0;
+
+var last_x: f64 = windowWidth / 2;
+var last_y: f64 = widonwHeight / 2;
+const mouse_sensitivity: f64 = 0.1;
+var last_init = false;
+
+pub fn onMouseMoved(window: *glfw.Window, x: f64, y: f64) callconv(.C) void {
+    _ = window;
+
+    if (!last_init) {
+        last_x = x;
+        last_y = y;
+        last_init = true;
+    }
+
+    const x_offset = mouse_sensitivity * (x - last_x);
+    const y_offset = mouse_sensitivity * (last_y - y); // reversed since y-coordinates range from bottom to top
+    
+    last_x = x;
+    last_y = y;
+
+    camera_yaw += @as(f32, @floatCast(x_offset));
+    camera_pitch += @as(f32, @floatCast(y_offset));
+
+    var stdout = std.io.getStdOut().writer();
+    stdout.print("yaw: {}, pitch: {}\n", .{ @as(i32, @intFromFloat(camera_yaw)), @as(i32, @intFromFloat(camera_pitch)) }) catch {};
+
+    if (camera_pitch > 89.99)
+        camera_pitch = 89.99;
+    if (camera_pitch < -89.99)
+        camera_pitch = -89.99;
 }
