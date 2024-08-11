@@ -1,13 +1,13 @@
 const std = @import("std");
 const gl = @import("gl");
 
-pub const Vec3 = struct {
-    data: [3]f32 = .{0} ** 3,
+pub const Vec3 = packed struct {
+    x: f32 = 0,
+    y: f32 = 0,
+    z: f32 = 0,
 
     pub fn Init(x: f32, y: f32, z: f32) Vec3 {
-        return Vec3 {
-            .data = .{ x, y, z }
-        };
+        return Vec3 { .x = x, .y = y, .z = z };
     }
 
     pub fn UnitX() Vec3 {
@@ -24,9 +24,9 @@ pub const Vec3 = struct {
 
     pub fn Add(vecA: Vec3, vecB: Vec3) Vec3 {
         return Vec3.Init(
-            vecA.data[0] + vecB.data[0],
-            vecA.data[1] + vecB.data[1],
-            vecA.data[2] + vecB.data[2]
+            vecA.x + vecB.x,
+            vecA.y + vecB.y,
+            vecA.z + vecB.z
         );
     }
 
@@ -36,24 +36,24 @@ pub const Vec3 = struct {
 
     pub fn Multiply(vec: Vec3, scalar: f32) Vec3 {
         return Vec3.Init(
-            vec.data[0] * scalar, 
-            vec.data[1] * scalar, 
-            vec.data[2] * scalar
+            vec.x * scalar, 
+            vec.y * scalar, 
+            vec.z * scalar
         );
     }
 
     pub fn Cross(vecA: Vec3, vecB: Vec3) Vec3 {
         return Vec3.Init(
-            vecA.data[1] * vecB.data[2] - vecA.data[2] * vecB.data[1],
-            vecA.data[2] * vecB.data[0] - vecA.data[0] * vecB.data[2],
-            vecA.data[0] * vecB.data[1] - vecA.data[1] * vecB.data[0]
+            vecA.y * vecB.z - vecA.z * vecB.y,
+            vecA.z * vecB.x - vecA.x * vecB.z,
+            vecA.x * vecB.y - vecA.y * vecB.x
         );
     }
 
     pub fn Normalize(vec: Vec3) Vec3 {
-        const x = vec.data[0];
-        const y = vec.data[1];
-        const z = vec.data[2];
+        const x = vec.x;
+        const y = vec.y;
+        const z = vec.z;
 
         const length = @sqrt(x * x + y * y + z * z);
 
@@ -64,7 +64,7 @@ pub const Vec3 = struct {
     }
 
     pub fn Invert(vec: Vec3) Vec3 {
-        return Vec3.Init(-vec.data[0], -vec.data[1], -vec.data[2]);
+        return Vec3.Init(-vec.x, -vec.y, -vec.z);
     }
 };
 
@@ -107,11 +107,11 @@ pub const Mat4 = struct {
         const s = @sin(radians);
         const t = 1.0 - c;
 
-        const normalized_axis = Vec3.Normalize(axis);
+        const normalized_axis = axis.Normalize();
 
-        const nx = normalized_axis.data[0];
-        const ny = normalized_axis.data[1];
-        const nz = normalized_axis.data[2];
+        const nx = normalized_axis.x;
+        const ny = normalized_axis.y;
+        const nz = normalized_axis.z;
 
         return Mat4{
             .data = .{
@@ -124,15 +124,11 @@ pub const Mat4 = struct {
     }
 
     pub fn Translation(translation: Vec3) Mat4 {
-        const x = translation.data[0];
-        const y = translation.data[1];
-        const z = translation.data[2];
-
         return Mat4 {
             .data = .{
-                1, 0, 0, x,
-                0, 1, 0, y,
-                0, 0, 1, z,
+                1, 0, 0, translation.x,
+                0, 1, 0, translation.y,
+                0, 0, 1, translation.z,
                 0, 0, 0, 1,
             }
         };
@@ -159,9 +155,9 @@ pub const Mat4 = struct {
 
         const coord_space = Mat4 {
             .data = .{
-                cam_right.data[0], cam_right.data[1], cam_right.data[2], 0,
-                cam_up.data[0], cam_up.data[1], cam_up.data[2], 0,
-                cam_direction.data[0], cam_direction.data[1], cam_direction.data[2], 0,
+                cam_right.x, cam_right.y, cam_right.z, 0,
+                cam_up.x, cam_up.y, cam_up.z, 0,
+                cam_direction.x, cam_direction.y, cam_direction.z, 0,
                 0, 0, 0, 1
             }
         };

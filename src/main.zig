@@ -2,9 +2,12 @@ const std = @import("std");
 const gl = @import("gl");
 const glfw = @import("glfw");
 const math = @import("math.zig");
+const Camera = @import("camera.zig").Camera;
 
 const windowWidth = 800;
 const widonwHeight = 640;
+
+var camera = Camera{};
 
 pub fn main() !void {
     try glfw.init();
@@ -105,19 +108,13 @@ pub fn main() !void {
 
     // coordinate systems
 
-    var model_matrix = math.Mat4.Rotation(std.math.degreesToRadians(0), math.Vec3.Init(0, 0, 0));
+    var model_matrix = math.Mat4.Translation(math.Vec3.Init(0, 0, -3));
     const model_location = gl.GetUniformLocation(shader_program, "model");
     gl.UniformMatrix4fv(model_location, 1, gl.TRUE, &model_matrix.data);
 
     const projection_matrix = math.Mat4.Perspective(std.math.degreesToRadians(45), windowWidth / widonwHeight, 0.1, 100);
     const projection_location = gl.GetUniformLocation(shader_program, "projection");
     gl.UniformMatrix4fv(projection_location, 1, gl.TRUE, &projection_matrix.data);
-
-    // camera
-
-    var camera_position = math.Vec3.Init(0, 0, 2);
-    const camera_up = math.Vec3.UnitY();
-    const camera_speed = 0.05;
 
     // main loop
 
@@ -126,6 +123,8 @@ pub fn main() !void {
 
     var frame_count: i64 = 0;
     var start_time = std.time.microTimestamp();
+
+    const camera_speed = 0.05;
 
     while (!glfw.windowShouldClose(window)) {
 
@@ -136,24 +135,18 @@ pub fn main() !void {
             continue;
         }
 
-        const camera_direction = math.Vec3.Init(
-            @cos(std.math.degreesToRadians(camera_yaw)) * @cos(std.math.degreesToRadians(camera_pitch)),
-            @sin(std.math.degreesToRadians(camera_pitch)),
-            @sin(std.math.degreesToRadians(camera_yaw)) * @cos(std.math.degreesToRadians(camera_pitch))
-        ).Normalize();
+        const camera_direction = camera.Direction();
 
         if (glfw.getKey(window, glfw.KeyW) == glfw.Press)
-            camera_position = camera_position.Add(camera_direction.Multiply(camera_speed));
+            camera.position = camera.position.Add(camera_direction.Multiply(camera_speed));
         if (glfw.getKey(window, glfw.KeyS) == glfw.Press)
-            camera_position = camera_position.Substract(camera_direction.Multiply(camera_speed));
+            camera.position = camera.position.Substract(camera_direction.Multiply(camera_speed));
         if (glfw.getKey(window, glfw.KeyA) == glfw.Press)
-            camera_position = camera_position.Substract(math.Vec3.Cross(camera_direction, camera_up).Normalize().Multiply(camera_speed));
+            camera.position = camera.position.Substract(math.Vec3.Cross(camera_direction, camera.up).Normalize().Multiply(camera_speed));
         if (glfw.getKey(window, glfw.KeyD) == glfw.Press)
-            camera_position = camera_position.Add(math.Vec3.Cross(camera_direction, camera_up).Normalize().Multiply(camera_speed));
+            camera.position = camera.position.Add(math.Vec3.Cross(camera_direction, camera.up).Normalize().Multiply(camera_speed));
 
-        var view_matrix = math.Mat4.LookAt(camera_position, math.Vec3.Add(camera_position, camera_direction), camera_up);
-        const view_location = gl.GetUniformLocation(shader_program, "view");
-        gl.UniformMatrix4fv(view_location, 1, gl.TRUE, &view_matrix.data);
+        camera.update(shader_program);
 
         // rendering
 
@@ -179,12 +172,9 @@ pub fn main() !void {
     }
 }
 
-var camera_yaw: f32 = -90;
-var camera_pitch: f32 = 0;
-
 var last_x: f64 = windowWidth / 2;
 var last_y: f64 = widonwHeight / 2;
-const mouse_sensitivity: f64 = 0.1;
+const mouse_sensitivity: f64 = 0.07;
 var last_init = false;
 
 pub fn onMouseMoved(window: *glfw.Window, x: f64, y: f64) callconv(.C) void {
@@ -202,14 +192,11 @@ pub fn onMouseMoved(window: *glfw.Window, x: f64, y: f64) callconv(.C) void {
     last_x = x;
     last_y = y;
 
-    camera_yaw += @as(f32, @floatCast(x_offset));
-    camera_pitch += @as(f32, @floatCast(y_offset));
+    camera.rotation.y += @as(f32, @floatCast(x_offset));
+    camera.rotation.x += @as(f32, @floatCast(y_offset));
 
-    var stdout = std.io.getStdOut().writer();
-    stdout.print("yaw: {}, pitch: {}\n", .{ @as(i32, @intFromFloat(camera_yaw)), @as(i32, @intFromFloat(camera_pitch)) }) catch {};
-
-    if (camera_pitch > 89.99)
-        camera_pitch = 89.99;
-    if (camera_pitch < -89.99)
-        camera_pitch = -89.99;
+    if (camera.rotation.x > 89.99)
+        camera.rotation.x = 89.99;
+    if (camera.rotation.x < -89.99)
+        camera.rotation.x = -89.99;
 }
