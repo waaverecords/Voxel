@@ -33,12 +33,25 @@ pub fn main() !void {
     // vertex buffer
 
     const vertices = [_]f32 {
-        -0.5, -0.5, 0,
-        0, 0.5, 0,
-        0.5, -0.5, 0
+        0.5,  0.5, 0.0,
+        0.5, -0.5, 0.0,
+        -0.5, -0.5, 0.0,
+        -0.5,  0.5, 0.0
+    };
+    const indices = [_]u32 {
+        0, 1, 3,
+        1, 2, 3
     };
 
-    var vertex_buffer: gl.uint = undefined;
+    var vao: gl.uint = 0;
+
+    gl.GenVertexArrays(1, @ptrCast(&vao));
+    defer gl.DeleteVertexArrays(1, @ptrCast(&vao));
+
+    gl.BindVertexArray(vao);
+    defer gl.BindVertexArray(0);
+
+    var vertex_buffer: gl.uint = 0;
 
     gl.GenBuffers(1, @ptrCast(&vertex_buffer));
     defer gl.DeleteBuffers(1, @ptrCast(&vertex_buffer));
@@ -47,6 +60,19 @@ pub fn main() !void {
     defer gl.BindBuffer(gl.ARRAY_BUFFER, 0);
 
     gl.BufferData(gl.ARRAY_BUFFER, @sizeOf(@TypeOf(vertices)), &vertices, gl.STATIC_DRAW);
+
+    var element_buffer: gl.uint = 0;
+
+    gl.GenBuffers(1, @ptrCast(&element_buffer));
+    defer gl.DeleteBuffers(1, @ptrCast(&element_buffer));
+
+    gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, element_buffer);
+    defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0);
+
+    gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, @sizeOf(@TypeOf(indices)), &indices, gl.STATIC_DRAW);
+
+    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * @sizeOf(f32), 0);
+    gl.EnableVertexAttribArray(0);
 
     // vertext shader
 
@@ -102,11 +128,6 @@ pub fn main() !void {
     gl.LinkProgram(shader_program);
     gl.UseProgram(shader_program);
 
-    // link vertex attributes
-
-    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * @sizeOf(f32), 0);
-    gl.EnableVertexAttribArray(0);
-
     // coordinate systems
 
     var model_matrix = math.Mat4.Translation(math.Vec3.Init(0, 0, -3));
@@ -158,7 +179,7 @@ pub fn main() !void {
         gl.ClearColor(0, 0, 255, 1);
         gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        gl.DrawArrays(gl.TRIANGLES, 0, 3);
+        gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
 
         frame_count +=1;
         const current_time = std.time.microTimestamp();
