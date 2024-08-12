@@ -1,3 +1,5 @@
+// https://sites.google.com/site/letsmakeavoxelengine/home/landcape-creation
+
 const std = @import("std");
 const gl = @import("gl");
 const glfw = @import("glfw");
@@ -11,6 +13,8 @@ const widonwHeight = 640;
 var camera = Camera{};
 
 pub fn main() !void {
+    var stdout = std.io.getStdOut().writer();
+
     try glfw.init();
     defer glfw.terminate();
 
@@ -29,6 +33,8 @@ pub fn main() !void {
     _ = gl_procs.init(glfw.getProcAddress);
     gl.makeProcTableCurrent(&gl_procs);
     defer gl.makeProcTableCurrent(null);
+
+    const allocator = std.heap.c_allocator;
 
     // vertex buffer
 
@@ -103,19 +109,28 @@ pub fn main() !void {
     const fragment_shader = gl.CreateShader(gl.FRAGMENT_SHADER);
     defer gl.DeleteShader(fragment_shader);
 
-    const fragment_shader_source =
-        \\#version 330 core
-        \\
-        \\in vec3 color;
-        \\
-        \\out vec4 FragColor;
-        \\
-        \\void main() {
-        \\    FragColor = vec4(color, 1.0f);
-        \\}
-    ;
-    gl.ShaderSource(fragment_shader, 1, &[1][*]const u8 { fragment_shader_source}, null);
-    gl.CompileShader(vertex_shader);
+    var file = try std.fs.cwd().openFile("src/frag.glsl", .{});
+    defer file.close();
+
+    const fragment_shader_source = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
+    defer allocator.free(fragment_shader_source);
+
+    const nb = try allocator.alloc(u8, @as(usize, @intCast(fragment_shader_source.len + 1)));
+    defer allocator.free(nb);
+    std.mem.copyForwards(u8, nb, fragment_shader_source);
+    nb[nb.len - 1] = 0; // needs to be null terminated
+
+    gl.ShaderSource(fragment_shader, 1, &[_][*]const u8 { nb.ptr }, null);
+    gl.CompileShader(fragment_shader);
+
+    var success: gl.int = 0;
+    gl.GetShaderiv(fragment_shader, gl.COMPILE_STATUS, &success);
+    try stdout.print("success {}", .{ success == gl.TRUE });
+    var maxLength: gl.int = 0;
+    gl.GetShaderiv(fragment_shader, gl.INFO_LOG_LENGTH, &maxLength);
+    const log =  try allocator.alloc(u8, @intCast(maxLength));
+    gl.GetShaderInfoLog(fragment_shader, maxLength, &maxLength, log.ptr);
+    try stdout.print("{s}", .{ log });
 
     // shader program
 
@@ -140,15 +155,15 @@ pub fn main() !void {
 
     // main loop
 
-    var stdout = std.io.getStdOut().writer();
     gl.Enable(gl.DEPTH_TEST);
+    gl.PolygonMode(gl.FRONT, gl.LINE);
+
 
     var frame_count: i64 = 0;
     var start_time = std.time.microTimestamp();
 
     const camera_speed = 0.05;
 
-    const allocator = std.heap.c_allocator;
     var entities = try EntitiesStorage.init(allocator);
     defer entities.deinit();
 

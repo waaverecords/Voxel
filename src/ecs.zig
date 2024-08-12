@@ -1,6 +1,8 @@
 const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
 
+// https://devlog.hexops.com/2022/lets-build-ecs-part-2-databases/
+
 pub const void_archetype_hash = std.math.maxInt(u64);
 
 pub const EntitiesStorage = struct {
