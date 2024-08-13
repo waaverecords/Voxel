@@ -36,15 +36,43 @@ pub fn main() !void {
 
     // vertex buffer
 
+    const worldSize = 2;
+    const voxelsLength = comptime std.math.pow(usize, worldSize, 3);
+    var voxels = [_]bool { false } ** voxelsLength;
+    voxels[0] = true;
+    voxels[worldSize] = true;
+    voxels[std.math.pow(usize, worldSize, 2) - worldSize] = true;
+    voxels[std.math.pow(usize, worldSize, 2) - 1] = true;
+
+    const verticesPerEdge = worldSize + 1;
+    const verticesLength = comptime std.math.pow(usize, verticesPerEdge, 2) * verticesPerEdge * 3;
+    var voxelsVertices = [_]f32 { 0 } ** verticesLength;
+    for (0..verticesPerEdge) |y| {
+        for (0..verticesPerEdge) |z| {
+            for (0..verticesPerEdge) |x| {
+                const stride = std.math.pow(usize, verticesPerEdge, 2) * y + verticesPerEdge * z + x;
+                var vertice: []f32 = voxelsVertices[stride..stride + 3];
+                vertice[0] = @floatFromInt(x);
+                vertice[1] = @as(f32, @floatFromInt(y)) * -1;
+                vertice[2] = @floatFromInt(z);
+                print("({d}, {d}, {d})", .{ vertice[0], vertice[1], vertice[2] });
+            }
+            print("\n", .{});
+        }
+        print("\n", .{});
+    }
+
     const vertices = [_]f32 {
-        0.5,  0.5, 0.0,
-        0.5, -0.5, 0.0,
-        -0.5, -0.5, 0.0,
-        -0.5,  0.5, 0.0
+        0.5,  0.5, 1.0,
+        0.5, -0.5, 1.0,
+        -0.5,  0.5, 1.0,
+        0.5,  0.5, -3.0,
+        0.5, -0.5, -3.0,
+        -0.5,  0.5, -3.0
     };
     const indices = [_]u32 {
-        0, 1, 3,
-        1, 2, 3
+        3, 4, 5,
+        0, 1, 2,
     };
 
     var vao: gl.uint = 0;
@@ -118,8 +146,9 @@ pub fn main() !void {
     // main loop
 
     gl.Enable(gl.DEPTH_TEST);
+    gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.Enable(gl.BLEND);
     gl.PolygonMode(gl.FRONT, gl.LINE);
-
 
     var frame_count: i64 = 0;
     var start_time = std.time.microTimestamp();
