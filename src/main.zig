@@ -1,6 +1,8 @@
 // https://sites.google.com/site/letsmakeavoxelengine/home/landcape-creation
 
 const std = @import("std");
+const print = std.debug.print;
+const allocator = std.heap.c_allocator;
 const gl = @import("gl");
 const glfw = @import("glfw");
 const math = @import("math.zig");
@@ -13,8 +15,6 @@ const widonwHeight = 640;
 var camera = Camera{};
 
 pub fn main() !void {
-    var stdout = std.io.getStdOut().writer();
-
     try glfw.init();
     defer glfw.terminate();
 
@@ -33,8 +33,6 @@ pub fn main() !void {
     _ = gl_procs.init(glfw.getProcAddress);
     gl.makeProcTableCurrent(&gl_procs);
     defer gl.makeProcTableCurrent(null);
-
-    const allocator = std.heap.c_allocator;
 
     // vertex buffer
 
@@ -82,63 +80,27 @@ pub fn main() !void {
 
     // vertext shader
 
-    const vertex_shader = gl.CreateShader(gl.VERTEX_SHADER);
-    defer gl.DeleteShader(vertex_shader);
+    const vertexShaderFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/vert.glsl");
+    defer allocator.free(vertexShaderFilePath);
 
-    const vertex_shader_source =
-        \\#version 330 core
-        \\
-        \\layout (location = 0) in vec3 aPos;
-        \\
-        \\out vec3 color;
-        \\
-        \\uniform mat4 model;
-        \\uniform mat4 view;
-        \\uniform mat4 projection;
-        \\
-        \\void main() {
-        \\   gl_Position = projection * view * model * vec4(aPos, 1.0);
-        \\   color = aPos;
-        \\}
-    ;
-    gl.ShaderSource(vertex_shader, 1, &[1][*]const u8 { vertex_shader_source }, null);
-    gl.CompileShader(vertex_shader);
+    const vertexShader = try createShaderFromFile(gl.VERTEX_SHADER, vertexShaderFilePath);
+    defer gl.DeleteShader(vertexShader);
 
     // fragment shader
 
-    const fragment_shader = gl.CreateShader(gl.FRAGMENT_SHADER);
-    defer gl.DeleteShader(fragment_shader);
+    const fragmentShaderFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/frag.glsl");
+    defer allocator.free(fragmentShaderFilePath);
 
-    var file = try std.fs.cwd().openFile("src/frag.glsl", .{});
-    defer file.close();
-
-    const fragment_shader_source = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
-    defer allocator.free(fragment_shader_source);
-
-    const nb = try allocator.alloc(u8, @as(usize, @intCast(fragment_shader_source.len + 1)));
-    defer allocator.free(nb);
-    std.mem.copyForwards(u8, nb, fragment_shader_source);
-    nb[nb.len - 1] = 0; // needs to be null terminated
-
-    gl.ShaderSource(fragment_shader, 1, &[_][*]const u8 { nb.ptr }, null);
-    gl.CompileShader(fragment_shader);
-
-    var success: gl.int = 0;
-    gl.GetShaderiv(fragment_shader, gl.COMPILE_STATUS, &success);
-    try stdout.print("success {}", .{ success == gl.TRUE });
-    var maxLength: gl.int = 0;
-    gl.GetShaderiv(fragment_shader, gl.INFO_LOG_LENGTH, &maxLength);
-    const log =  try allocator.alloc(u8, @intCast(maxLength));
-    gl.GetShaderInfoLog(fragment_shader, maxLength, &maxLength, log.ptr);
-    try stdout.print("{s}", .{ log });
+    const fragmentShader = try createShaderFromFile(gl.FRAGMENT_SHADER, fragmentShaderFilePath);
+    defer gl.DeleteShader(fragmentShader);
 
     // shader program
 
     const shader_program = gl.CreateProgram();
     defer gl.DeleteProgram(shader_program);
 
-    gl.AttachShader(shader_program, vertex_shader);
-    gl.AttachShader(shader_program, fragment_shader);
+    gl.AttachShader(shader_program, vertexShader);
+    gl.AttachShader(shader_program, fragmentShader);
 
     gl.LinkProgram(shader_program);
     gl.UseProgram(shader_program);
@@ -202,7 +164,7 @@ pub fn main() !void {
 
         if (elasped_time >= 1_000_000) {
             const fps = @divTrunc(frame_count * 1_000_000, elasped_time);
-            try stdout.print("fps: {}\n", .{fps});
+            print("fps: {}\n", .{ fps });
 
             start_time = current_time;
             frame_count = 0;
@@ -240,4 +202,45 @@ pub fn onMouseMoved(window: *glfw.Window, x: f64, y: f64) callconv(.C) void {
         camera.rotation.x = 89.99;
     if (camera.rotation.x < -89.99)
         camera.rotation.x = -89.99;
+}
+
+pub fn createShaderFromFile(@"type": gl.@"enum", filePath: []const u8) !gl.uint  {
+    const shader = gl.CreateShader(@"type");
+
+    var file = try std.fs.openFileAbsolute(filePath, .{});
+    defer file.close();
+
+    const source = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
+    defer allocator.free(source);
+
+    const newSource = try allocator.alloc(u8, @as(usize, @intCast(source.len + 1)));
+    defer allocator.free(newSource);
+
+    std.mem.copyForwards(u8, newSource, source);
+    newSource[newSource.len - 1] = 0; // needs to be null terminated
+
+    gl.ShaderSource(shader, 1, &[_][*]const u8 { newSource.ptr }, null);
+    gl.CompileShader(shader);
+
+    var compileStatus: gl.int = 0;
+    gl.GetShaderiv(shader, gl.COMPILE_STATUS, &compileStatus);
+
+    if (compileStatus == gl.FALSE) {
+        var logLength: gl.int = 0;
+        gl.GetShaderiv(shader, gl.INFO_LOG_LENGTH, &logLength);
+
+        const log =  try allocator.alloc(u8, @intCast(logLength));
+        defer allocator.free(log);
+
+        gl.GetShaderInfoLog(shader, logLength, &logLength, log.ptr);
+
+        print(
+            \\Failed to compile shader ({s})
+            \\{s}
+            ,
+            .{ filePath, log }
+        );
+    }
+
+    return shader;
 }
