@@ -19,11 +19,12 @@ pub fn main() !void {
     defer glfw.terminate();
 
     glfw.windowHint(glfw.Resizable, 0);
+    glfw.windowHint(glfw.Doublebuffer, 0);
 
     const window: *glfw.Window = try glfw.createWindow(windowWidth, widonwHeight, "Voxel", null, null);
     defer glfw.destroyWindow(window);
 
-    glfw.setInputMode(window, glfw.Cursor, glfw.CursorDisabled);
+    //glfw.setInputMode(window, glfw.Cursor, glfw.CursorDisabled);
     _ = glfw.setCursorPosCallback(window, &onMouseMoved);
 
     glfw.makeContextCurrent(window);
@@ -229,7 +230,7 @@ pub fn main() !void {
     // gl.Enable(gl.BLEND);
     // gl.Enable(gl.CULL_FACE);
     // gl.CullFace(gl.BACK);
-    gl.Viewport(0, 0, windowWidth, widonwHeight);
+    //gl.Viewport(0, 0, windowWidth, widonwHeight);
     //gl.FrontFace(gl.CW);
 
     var frame_count: i64 = 0;
@@ -292,7 +293,7 @@ pub fn main() !void {
             frame_count = 0;
         }
 
-        glfw.swapBuffers(window);
+        gl.Flush();
         glfw.pollEvents();
     }
 }
