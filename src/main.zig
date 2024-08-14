@@ -37,8 +37,8 @@ pub fn main() !void {
     // vertex buffer
 
     const worldSize = 2;
-    const voxelsLength = comptime std.math.pow(usize, worldSize, 3);
-    var voxels = [_]bool { false } ** voxelsLength;
+    const voxelCount = comptime std.math.pow(usize, worldSize, 3);
+    var voxels = [_]bool { false } ** voxelCount;
     voxels[0] = true;
     voxels[worldSize] = true;
     voxels[std.math.pow(usize, worldSize, 2) - worldSize] = true;
@@ -61,6 +61,9 @@ pub fn main() !void {
         }
         print("\n", .{});
     }
+
+    const vertexIndices = [_]f32 { 0 } ** (voxelCount * 12 * 3); // 12 triangles per cube, 3 indices per triangle
+    _ = vertexIndices;
 
     const vertices = [_]f32 {
         0.5,  0.5, 1.0,
@@ -133,6 +136,82 @@ pub fn main() !void {
     gl.LinkProgram(shader_program);
     gl.UseProgram(shader_program);
 
+    // ray tracer
+
+    var screenTex: gl.uint = 0;
+    gl.CreateTextures(gl.TEXTURE_2D, 1, @ptrCast(&screenTex));
+    defer gl.DeleteTextures(1,  @ptrCast(&screenTex));
+
+    gl.TextureStorage2D(screenTex, 1, gl.RGBA32F, windowWidth, widonwHeight);
+    gl.BindImageTexture(0, screenTex, 0, gl.FALSE, 0, gl.WRITE_ONLY, gl.RGBA32F);
+
+    const rayTracerShaderFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/rayTracer.comp");
+    defer allocator.free(rayTracerShaderFilePath);
+
+    const rayTracerShader = try createShaderFromFile(gl.COMPUTE_SHADER, rayTracerShaderFilePath);
+    defer gl.DeleteShader(rayTracerShader);
+
+    const rayTracerProgram = gl.CreateProgram();
+    defer gl.DeleteProgram(rayTracerProgram);
+
+    gl.AttachShader(rayTracerProgram, rayTracerShader);
+
+    gl.LinkProgram(rayTracerProgram);
+    gl.UseProgram(rayTracerProgram);
+
+    const viewportVertices = [_] gl.float {
+        -1, -1 , 0.0, 0.0, 0.0,
+        -1,  1 , 0.0, 0.0, 1,
+        1,  1 , 0.0, 1, 1,
+        1, -1 , 0.0, 1, 0.0,
+    };
+    const viewportIndices = [_] gl.uint {
+        0, 2, 1,
+        0, 3, 2,
+    };
+
+    // TODO: delete created resources
+
+    var VAO: gl.uint = 0;
+    var VBO: gl.uint = 0;
+    var EBO: gl.uint = 0;
+    gl.CreateVertexArrays(1, @ptrCast(&VAO));
+    gl.CreateBuffers(1, @ptrCast(&VBO));
+    gl.CreateBuffers(1, @ptrCast(&EBO));
+
+    gl.NamedBufferData(VBO, @sizeOf(@TypeOf(viewportVertices)), &viewportVertices, gl.STATIC_DRAW);
+    gl.NamedBufferData(EBO, @sizeOf(@TypeOf(viewportIndices)), &viewportIndices, gl.STATIC_DRAW);
+
+    gl.EnableVertexArrayAttrib(VAO, 0);
+    gl.VertexArrayAttribBinding(VAO, 0, 0);
+    gl.VertexArrayAttribFormat(VAO, 0, 3, gl.FLOAT, gl.FALSE, 0);
+
+    gl.EnableVertexArrayAttrib(VAO, 1);
+    gl.VertexArrayAttribBinding(VAO, 1, 0);
+	gl.VertexArrayAttribFormat(VAO, 1, 2, gl.FLOAT, gl.FALSE, @sizeOf(gl.float) * 3);
+
+    gl.VertexArrayVertexBuffer(VAO, 0, VBO, 0, @sizeOf(gl.float) * 5);
+	gl.VertexArrayElementBuffer(VAO, EBO);
+
+    const viewportVertFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/viewport.vert");
+    defer allocator.free(viewportVertFilePath);
+
+    const viewportVertShader = try createShaderFromFile(gl.VERTEX_SHADER, viewportVertFilePath);
+    defer gl.DeleteShader(viewportVertShader);
+
+    const viewportFragFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/viewport.frag");
+    defer allocator.free(viewportFragFilePath);
+
+    const viewportFragShader = try createShaderFromFile(gl.FRAGMENT_SHADER, viewportFragFilePath);
+    defer gl.DeleteShader(viewportFragShader);
+
+    const viewportProgram = gl.CreateProgram();
+    defer gl.DeleteProgram(viewportProgram);
+
+    gl.AttachShader(viewportProgram, viewportVertShader);
+    gl.AttachShader(viewportProgram, viewportFragShader);
+    gl.LinkProgram(viewportProgram);
+
     // coordinate systems
 
     var model_matrix = math.Mat4.Translation(math.Vec3.Init(0, 0, -3));
@@ -145,15 +224,19 @@ pub fn main() !void {
 
     // main loop
 
-    gl.Enable(gl.DEPTH_TEST);
-    gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.Enable(gl.BLEND);
-    gl.PolygonMode(gl.FRONT, gl.LINE);
+    // gl.Enable(gl.DEPTH_TEST);
+    // gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    // gl.Enable(gl.BLEND);
+    // gl.Enable(gl.CULL_FACE);
+    // gl.CullFace(gl.BACK);
+    gl.Viewport(0, 0, windowWidth, widonwHeight);
+    //gl.FrontFace(gl.CW);
 
     var frame_count: i64 = 0;
     var start_time = std.time.microTimestamp();
 
     const camera_speed = 0.05;
+    _ = camera_speed;
 
     var entities = try EntitiesStorage.init(allocator);
     defer entities.deinit();
@@ -167,25 +250,35 @@ pub fn main() !void {
             continue;
         }
 
-        const camera_direction = camera.Direction();
+        gl.UseProgram(rayTracerProgram);
+        gl.DispatchCompute(@ceil(@as(f32, @floatCast(windowWidth / 8))), @ceil(@as(f32, @floatCast(widonwHeight / 4))), 1);
+        gl.MemoryBarrier(gl.ALL_BARRIER_BITS);
 
-        if (glfw.getKey(window, glfw.KeyW) == glfw.Press)
-            camera.position = camera.position.Add(camera_direction.Multiply(camera_speed));
-        if (glfw.getKey(window, glfw.KeyS) == glfw.Press)
-            camera.position = camera.position.Substract(camera_direction.Multiply(camera_speed));
-        if (glfw.getKey(window, glfw.KeyA) == glfw.Press)
-            camera.position = camera.position.Substract(math.Vec3.Cross(camera_direction, camera.up).Normalize().Multiply(camera_speed));
-        if (glfw.getKey(window, glfw.KeyD) == glfw.Press)
-            camera.position = camera.position.Add(math.Vec3.Cross(camera_direction, camera.up).Normalize().Multiply(camera_speed));
+        gl.UseProgram(viewportProgram);
+        gl.BindTextureUnit(0, screenTex);
+        gl.Uniform1i(gl.GetUniformLocation(viewportProgram, "viewport"), 0);
+        gl.BindVertexArray(VAO);
+        gl.DrawElements(gl.TRIANGLES, viewportIndices.len, gl.UNSIGNED_INT, 0);
 
-        camera.update(shader_program);
+        // const camera_direction = camera.Direction();
 
-        // rendering
+        // if (glfw.getKey(window, glfw.KeyW) == glfw.Press)
+        //     camera.position = camera.position.Add(camera_direction.Multiply(camera_speed));
+        // if (glfw.getKey(window, glfw.KeyS) == glfw.Press)
+        //     camera.position = camera.position.Substract(camera_direction.Multiply(camera_speed));
+        // if (glfw.getKey(window, glfw.KeyA) == glfw.Press)
+        //     camera.position = camera.position.Substract(math.Vec3.Cross(camera_direction, camera.up).Normalize().Multiply(camera_speed));
+        // if (glfw.getKey(window, glfw.KeyD) == glfw.Press)
+        //     camera.position = camera.position.Add(math.Vec3.Cross(camera_direction, camera.up).Normalize().Multiply(camera_speed));
 
-        gl.ClearColor(0, 0, 255, 1);
-        gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        // camera.update(shader_program);
 
-        gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
+        // // rendering
+
+        // gl.ClearColor(0, 0, 255, 1);
+        // gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
 
         frame_count +=1;
         const current_time = std.time.microTimestamp();
