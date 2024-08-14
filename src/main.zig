@@ -140,23 +140,16 @@ pub fn main() !void {
     // ray tracer
 
     var screenTex: gl.uint = 0;
-    gl.CreateTextures(gl.TEXTURE_2D, 1, @ptrCast(&screenTex));
-    defer gl.DeleteTextures(1,  @ptrCast(&screenTex));
+    gl.CreateTextures(gl.TEXTURE_2D, 1, @ptrCast(&screenTex)); defer gl.DeleteTextures(1,  @ptrCast(&screenTex));
 
     gl.TextureStorage2D(screenTex, 1, gl.RGBA32F, windowWidth, widonwHeight);
     gl.BindImageTexture(0, screenTex, 0, gl.FALSE, 0, gl.WRITE_ONLY, gl.RGBA32F);
 
-    const rayTracerShaderFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/rayTracer.comp");
-    defer allocator.free(rayTracerShaderFilePath);
+    const rayTracerShaderFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/rayTracer.comp"); defer allocator.free(rayTracerShaderFilePath);
+    const rayTracerShader = try createShaderFromFile(gl.COMPUTE_SHADER, rayTracerShaderFilePath); defer gl.DeleteShader(rayTracerShader);
 
-    const rayTracerShader = try createShaderFromFile(gl.COMPUTE_SHADER, rayTracerShaderFilePath);
-    defer gl.DeleteShader(rayTracerShader);
-
-    const rayTracerProgram = gl.CreateProgram();
-    defer gl.DeleteProgram(rayTracerProgram);
-
+    const rayTracerProgram = gl.CreateProgram(); defer gl.DeleteProgram(rayTracerProgram);
     gl.AttachShader(rayTracerProgram, rayTracerShader);
-
     gl.LinkProgram(rayTracerProgram);
     gl.UseProgram(rayTracerProgram);
 
@@ -171,14 +164,12 @@ pub fn main() !void {
         0, 3, 2,
     };
 
-    // TODO: delete created resources
-
     var VAO: gl.uint = 0;
     var VBO: gl.uint = 0;
     var EBO: gl.uint = 0;
-    gl.CreateVertexArrays(1, @ptrCast(&VAO));
-    gl.CreateBuffers(1, @ptrCast(&VBO));
-    gl.CreateBuffers(1, @ptrCast(&EBO));
+    gl.CreateVertexArrays(1, @ptrCast(&VAO)); defer gl.DeleteVertexArrays(1, @ptrCast(&VAO));
+    gl.CreateBuffers(1, @ptrCast(&VBO)); defer gl.DeleteBuffers(1, @ptrCast(&VBO));
+    gl.CreateBuffers(1, @ptrCast(&EBO)); defer gl.DeleteBuffers(1, @ptrCast(&EBO));
 
     gl.NamedBufferData(VBO, @sizeOf(@TypeOf(viewportVertices)), &viewportVertices, gl.STATIC_DRAW);
     gl.NamedBufferData(EBO, @sizeOf(@TypeOf(viewportIndices)), &viewportIndices, gl.STATIC_DRAW);
@@ -194,21 +185,13 @@ pub fn main() !void {
     gl.VertexArrayVertexBuffer(VAO, 0, VBO, 0, @sizeOf(gl.float) * 5);
 	gl.VertexArrayElementBuffer(VAO, EBO);
 
-    const viewportVertFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/viewport.vert");
-    defer allocator.free(viewportVertFilePath);
+    const viewportVertFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/viewport.vert"); defer allocator.free(viewportVertFilePath);
+    const viewportVertShader = try createShaderFromFile(gl.VERTEX_SHADER, viewportVertFilePath); defer gl.DeleteShader(viewportVertShader);
 
-    const viewportVertShader = try createShaderFromFile(gl.VERTEX_SHADER, viewportVertFilePath);
-    defer gl.DeleteShader(viewportVertShader);
+    const viewportFragFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/viewport.frag"); defer allocator.free(viewportFragFilePath);
+    const viewportFragShader = try createShaderFromFile(gl.FRAGMENT_SHADER, viewportFragFilePath); defer gl.DeleteShader(viewportFragShader);
 
-    const viewportFragFilePath = try std.fs.cwd().realpathAlloc(allocator, "./src/viewport.frag");
-    defer allocator.free(viewportFragFilePath);
-
-    const viewportFragShader = try createShaderFromFile(gl.FRAGMENT_SHADER, viewportFragFilePath);
-    defer gl.DeleteShader(viewportFragShader);
-
-    const viewportProgram = gl.CreateProgram();
-    defer gl.DeleteProgram(viewportProgram);
-
+    const viewportProgram = gl.CreateProgram(); defer gl.DeleteProgram(viewportProgram);
     gl.AttachShader(viewportProgram, viewportVertShader);
     gl.AttachShader(viewportProgram, viewportFragShader);
     gl.LinkProgram(viewportProgram);
