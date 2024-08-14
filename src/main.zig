@@ -10,7 +10,10 @@ const Camera = @import("camera.zig").Camera;
 const EntitiesStorage = @import("ecs.zig").EntitiesStorage;
 
 const windowWidth = 800;
-const widonwHeight = 640;
+const widonwHeight = 600;
+
+var cameraPosition = [_]f32 { 0, 1, 0 };
+var cameraDirection = [_]f32 { 0, -0.2, 1 };
 
 var camera = Camera{};
 
@@ -219,8 +222,7 @@ pub fn main() !void {
     var frame_count: i64 = 0;
     var start_time = std.time.microTimestamp();
 
-    const camera_speed = 0.05;
-    _ = camera_speed;
+    const camera_speed = 0.0025;
 
     var entities = try EntitiesStorage.init(allocator);
     defer entities.deinit();
@@ -234,13 +236,24 @@ pub fn main() !void {
             continue;
         }
 
+        if (glfw.getKey(window, glfw.KeyW) == glfw.Press)
+            cameraPosition[2] += camera_speed;
+        if (glfw.getKey(window, glfw.KeyS) == glfw.Press)
+            cameraPosition[2] -= camera_speed;
+        if (glfw.getKey(window, glfw.KeyA) == glfw.Press)
+            cameraPosition[0] -= camera_speed;
+        if (glfw.getKey(window, glfw.KeyD) == glfw.Press)
+            cameraPosition[0] += camera_speed;
+
         gl.UseProgram(rayTracerProgram);
+        gl.Uniform3fv(gl.GetUniformLocation(rayTracerProgram, "cameraPosition"), 1, &cameraPosition[0]);
+        gl.Uniform3fv(gl.GetUniformLocation(rayTracerProgram, "cameraDirection"), 1, &cameraDirection[0]);
         gl.DispatchCompute(@ceil(@as(f32, @floatCast(windowWidth / 8))), @ceil(@as(f32, @floatCast(widonwHeight / 4))), 1);
         gl.MemoryBarrier(gl.ALL_BARRIER_BITS);
 
         gl.UseProgram(viewportProgram);
         gl.BindTextureUnit(0, screenTex);
-        gl.Uniform1i(gl.GetUniformLocation(viewportProgram, "viewport"), 0);
+        gl.Uniform1i(gl.GetUniformLocation(viewportProgram, "viewport"), 0); // TODO: what is this ?
         gl.BindVertexArray(VAO);
         gl.DrawElements(gl.TRIANGLES, viewportIndices.len, gl.UNSIGNED_INT, 0);
 
