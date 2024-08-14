@@ -12,8 +12,9 @@ const EntitiesStorage = @import("ecs.zig").EntitiesStorage;
 const windowWidth = 800;
 const widonwHeight = 600;
 
-var cameraPosition = [_]f32 { 0, 1, 0 };
-var cameraDirection = [_]f32 { 0, -0.2, 1 };
+var cameraPosition = [_]f32 { 0, 2, 0 };
+var cameraDirection = [_]f32 { 0, -0.5, 1 };
+var cameraFov: gl.int = 75;
 
 var camera = Camera{};
 
@@ -248,6 +249,7 @@ pub fn main() !void {
         gl.UseProgram(rayTracerProgram);
         gl.Uniform3fv(gl.GetUniformLocation(rayTracerProgram, "cameraPosition"), 1, &cameraPosition[0]);
         gl.Uniform3fv(gl.GetUniformLocation(rayTracerProgram, "cameraDirection"), 1, &cameraDirection[0]);
+        gl.Uniform1i(gl.GetUniformLocation(rayTracerProgram, "cameraFov"), cameraFov);
         gl.DispatchCompute(@ceil(@as(f32, @floatCast(windowWidth / 8))), @ceil(@as(f32, @floatCast(widonwHeight / 4))), 1);
         gl.MemoryBarrier(gl.ALL_BARRIER_BITS);
 
