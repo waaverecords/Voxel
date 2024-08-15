@@ -4,7 +4,7 @@ layout(local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
 layout(rgba32f, binding = 0) uniform image2D viewport;
 uniform vec3 cameraPosition;
 uniform vec3 cameraDirection;
-uniform int cameraFov;
+uniform float cameraFov;
 
 bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition, float cubeSize, out vec3 hitFaceNormal) {
 	vec3 minBound = cubePosition - vec3(cubeSize * 0.5);
@@ -58,17 +58,17 @@ void main() {
 
 	vec3 nearPlaneCenter = cameraPosition + (nCameraDirection * nearPlaneDist);
 	vec3 rayOrigin = nearPlaneCenter
-		+ cameraRight * (-(float(pixelCoord.x * 2 - viewportSize.x) / viewportSize.x)) * aspectRatio
+		+ cameraRight * (float(pixelCoord.x * 2 - viewportSize.x) / viewportSize.x) * aspectRatio
 		- cameraUp * -(float(pixelCoord.y * 2 - viewportSize.y) / viewportSize.y);
 	vec3 rayDirection = normalize(rayOrigin - cameraPosition);
 
 	float cubeSize = 1;
-	vec3 voxel1 = vec3(0, 0, 12);
-	vec3 voxel2 = vec3(-0.5, -3, 8);
-	vec3 voxel3 = vec3(-2, -1, 4);
+	vec3 voxel1 = vec3(12, 0, 0);
+	vec3 voxel2 = vec3(8, -3, -0.5);
+	vec3 voxel3 = vec3(4, -1, -2);
 
-	vec3 hitFaceNormal;
 	bool intersects;
+	vec3 hitFaceNormal;
 
 	// z sorting would be necessary
 	if (intersects = rayIntersectsCube(rayOrigin, rayDirection, voxel3, cubeSize, hitFaceNormal))
@@ -79,8 +79,12 @@ void main() {
 		color = vec4(0, 0, 1, 1);
 
 	if (intersects) {
+
+		// lighting
+		// https://math.hws.edu/graphicsbook/c7/s2.html
+
 		vec4 lightColor = vec4(vec3(1), 1); // r g b intensity
-		vec3 invLightDirection = normalize(vec3(0.5, 1.5, 1));
+		vec3 invLightDirection = normalize(vec3(1, 1.5, 0.4));
 		float specularIntensity = 0.3;
 		float specularExponent = 5;
 

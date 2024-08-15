@@ -5,8 +5,9 @@ const gl = @import("gl");
 pub const Camera = struct {
     // TODO: put these in a transform component?
     position: math.Vec3 = math.Vec3{},
-    rotation: math.Vec3 = math.Vec3.Init(0, -90, 0),
-
+    rotation: math.Vec3 = math.Vec3{},
+    fov: f32 = 90,
+    
     up: math.Vec3 = math.Vec3.UnitY(),
 
     pub fn Direction(self: Camera) math.Vec3 {

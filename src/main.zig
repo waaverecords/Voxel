@@ -12,11 +12,10 @@ const EntitiesStorage = @import("ecs.zig").EntitiesStorage;
 const windowWidth = 800;
 const widonwHeight = 600;
 
-var cameraPosition = [_]f32 { 0, 2, 0 };
-var cameraDirection = [_]f32 { 0, -0.5, 1 };
-var cameraFov: gl.int = 75;
-
-var camera = Camera{};
+var camera = Camera {
+    .fov = 75,
+    .position = math.Vec3.Init(0, 2, 0),
+};
 
 pub fn main() !void {
     try glfw.init();
@@ -28,7 +27,7 @@ pub fn main() !void {
     const window: *glfw.Window = try glfw.createWindow(windowWidth, widonwHeight, "Voxel", null, null);
     defer glfw.destroyWindow(window);
 
-    //glfw.setInputMode(window, glfw.Cursor, glfw.CursorDisabled);
+    glfw.setInputMode(window, glfw.Cursor, glfw.CursorDisabled);
     _ = glfw.setCursorPosCallback(window, &onMouseMoved);
 
     glfw.makeContextCurrent(window);
@@ -237,47 +236,29 @@ pub fn main() !void {
             continue;
         }
 
+        const cameraDirection = camera.Direction();
+
         if (glfw.getKey(window, glfw.KeyW) == glfw.Press)
-            cameraPosition[2] += camera_speed;
+            camera.position = camera.position.Add(cameraDirection.Multiply(camera_speed));
         if (glfw.getKey(window, glfw.KeyS) == glfw.Press)
-            cameraPosition[2] -= camera_speed;
+            camera.position = camera.position.Substract(cameraDirection.Multiply(camera_speed));
         if (glfw.getKey(window, glfw.KeyA) == glfw.Press)
-            cameraPosition[0] -= camera_speed;
+            camera.position = camera.position.Substract(math.Vec3.Cross(cameraDirection, camera.up).Normalize().Multiply(camera_speed));
         if (glfw.getKey(window, glfw.KeyD) == glfw.Press)
-            cameraPosition[0] += camera_speed;
+            camera.position = camera.position.Add(math.Vec3.Cross(cameraDirection, camera.up).Normalize().Multiply(camera_speed));
 
         gl.UseProgram(rayTracerProgram);
-        gl.Uniform3fv(gl.GetUniformLocation(rayTracerProgram, "cameraPosition"), 1, &cameraPosition[0]);
-        gl.Uniform3fv(gl.GetUniformLocation(rayTracerProgram, "cameraDirection"), 1, &cameraDirection[0]);
-        gl.Uniform1i(gl.GetUniformLocation(rayTracerProgram, "cameraFov"), cameraFov);
+        gl.Uniform3fv(gl.GetUniformLocation(rayTracerProgram, "cameraPosition"), 1, camera.position.cPtr());
+        gl.Uniform3fv(gl.GetUniformLocation(rayTracerProgram, "cameraDirection"), 1, cameraDirection.cPtr());
+        gl.Uniform1f(gl.GetUniformLocation(rayTracerProgram, "cameraFov"), camera.fov);
         gl.DispatchCompute(@ceil(@as(f32, @floatCast(windowWidth / 8))), @ceil(@as(f32, @floatCast(widonwHeight / 4))), 1);
         gl.MemoryBarrier(gl.ALL_BARRIER_BITS);
-
+        
         gl.UseProgram(viewportProgram);
         gl.BindTextureUnit(0, screenTex);
         gl.Uniform1i(gl.GetUniformLocation(viewportProgram, "viewport"), 0); // TODO: what is this ?
         gl.BindVertexArray(VAO);
         gl.DrawElements(gl.TRIANGLES, viewportIndices.len, gl.UNSIGNED_INT, 0);
-
-        // const camera_direction = camera.Direction();
-
-        // if (glfw.getKey(window, glfw.KeyW) == glfw.Press)
-        //     camera.position = camera.position.Add(camera_direction.Multiply(camera_speed));
-        // if (glfw.getKey(window, glfw.KeyS) == glfw.Press)
-        //     camera.position = camera.position.Substract(camera_direction.Multiply(camera_speed));
-        // if (glfw.getKey(window, glfw.KeyA) == glfw.Press)
-        //     camera.position = camera.position.Substract(math.Vec3.Cross(camera_direction, camera.up).Normalize().Multiply(camera_speed));
-        // if (glfw.getKey(window, glfw.KeyD) == glfw.Press)
-        //     camera.position = camera.position.Add(math.Vec3.Cross(camera_direction, camera.up).Normalize().Multiply(camera_speed));
-
-        // camera.update(shader_program);
-
-        // // rendering
-
-        // gl.ClearColor(0, 0, 255, 1);
-        // gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        // gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
 
         frame_count +=1;
         const current_time = std.time.microTimestamp();

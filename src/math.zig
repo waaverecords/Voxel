@@ -1,7 +1,7 @@
 const std = @import("std");
 const gl = @import("gl");
 
-pub const Vec3 = packed struct {
+pub const Vec3 = extern struct {
     x: f32 = 0,
     y: f32 = 0,
     z: f32 = 0,
@@ -65,6 +65,10 @@ pub const Vec3 = packed struct {
 
     pub fn Invert(vec: Vec3) Vec3 {
         return Vec3.Init(-vec.x, -vec.y, -vec.z);
+    }
+
+    pub fn cPtr(self: *const Vec3) *const f32 {
+        return &self.x;
     }
 };
 
