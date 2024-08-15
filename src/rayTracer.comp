@@ -6,10 +6,12 @@ uniform vec3 cameraPosition;
 uniform vec3 cameraDirection;
 uniform int cameraFov;
 
-bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition, float cubeSize) {
-	vec3 invDir = 1.0 / rayDirection;
-    vec3 tMin = (cubePosition - rayOrigin) * invDir;
-    vec3 tMax = (cubePosition + vec3(cubeSize) - rayOrigin) * invDir;
+bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition, float cubeSize, out vec3 hitFaceNormal) {
+	vec3 minBound = cubePosition - vec3(cubeSize * 0.5);
+    vec3 maxBound = cubePosition + vec3(cubeSize * 0.5);
+
+    vec3 tMin = (minBound - rayOrigin) / rayDirection;
+    vec3 tMax = (maxBound - rayOrigin) / rayDirection;
 
     vec3 t1 = min(tMin, tMax);
     vec3 t2 = max(tMin, tMax);
@@ -17,7 +19,25 @@ bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition, flo
     float tNear = max(max(t1.x, t1.y), t1.z);
     float tFar = min(min(t2.x, t2.y), t2.z);
 
-    return tNear <= tFar && tFar >= 0.0;
+    if (tNear <= 0.0 || tNear >= tFar)
+		return false;
+		
+	vec3 hitPoint = rayOrigin + tNear * rayDirection;
+
+	if (abs(hitPoint.x - minBound.x) < 0.001)
+		hitFaceNormal = vec3(-1.0, 0.0, 0.0);
+	else if (abs(hitPoint.x - maxBound.x) < 0.001)
+		hitFaceNormal = vec3(1.0, 0.0, 0.0);
+	else if (abs(hitPoint.y - minBound.y) < 0.001)
+		hitFaceNormal = vec3(0.0, -1.0, 0.0);
+	else if (abs(hitPoint.y - maxBound.y) < 0.001)
+		hitFaceNormal = vec3(0.0, 1.0, 0.0);
+	else if (abs(hitPoint.z - minBound.z) < 0.001)
+		hitFaceNormal = vec3(0.0, 0.0, -1.0);
+	else if (abs(hitPoint.z - maxBound.z) < 0.001)
+		hitFaceNormal = vec3(0.0, 0.0, 1.0);
+
+	return true;
 }
 
 void main() {
@@ -47,13 +67,20 @@ void main() {
 	vec3 voxel2 = vec3(-0.5, -3, 8);
 	vec3 voxel3 = vec3(-2, -1, 4);
 
+	vec3 hitFaceNormal;
+
 	// z sorting would be necessary
-	if (rayIntersectsCube(rayOrigin, rayDirection, voxel3, cubeSize))
-		color.z = 1;
-	else if (rayIntersectsCube(rayOrigin, rayDirection, voxel2, cubeSize))
-		color.x = 1;
-	else if (rayIntersectsCube(rayOrigin, rayDirection, voxel1, cubeSize))
-		color.y = 1;
+	if (rayIntersectsCube(rayOrigin, rayDirection, voxel3, cubeSize, hitFaceNormal))
+		color.b = 1;
+	else if (rayIntersectsCube(rayOrigin, rayDirection, voxel2, cubeSize, hitFaceNormal))
+		color.r = 1;
+	else if (rayIntersectsCube(rayOrigin, rayDirection, voxel1, cubeSize, hitFaceNormal))
+		color.g = 1;
+
+	// directional light
+	vec3 invLightDirection = normalize(vec3(0.5, 1, -1));
+	vec4 ligthColor = vec4(1);
+	color = color * ligthColor * dot(invLightDirection, hitFaceNormal);
 
 	imageStore(viewport, pixelCoord, color);
 }
