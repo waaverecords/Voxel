@@ -50,8 +50,8 @@ void main() {
 	vec3 worldUp = vec3(0, 1, 0);
 
 	vec3 nCameraDirection = normalize(cameraDirection);
-	vec3 cameraRight = cross(nCameraDirection, worldUp);
-	vec3 cameraUp = cross(cameraRight, nCameraDirection);
+	vec3 cameraRight = normalize(cross(nCameraDirection, worldUp));
+	vec3 cameraUp = normalize(cross(cameraRight, nCameraDirection));
 
 	float fov = radians(cameraFov);
 	float nearPlaneDist = tan(fov / 2) * 2;
