@@ -1,7 +1,7 @@
 const std = @import("std");
 const gl = @import("gl");
 
-pub const Vec3 = extern struct {
+pub const Vec3 = packed struct {
     x: f32 = 0,
     y: f32 = 0,
     z: f32 = 0,
@@ -30,7 +30,7 @@ pub const Vec3 = extern struct {
         );
     }
 
-    pub fn Substract(vecA: Vec3, vecB: Vec3) Vec3 {
+    pub fn substract(vecA: Vec3, vecB: Vec3) Vec3 {
         return Vec3.Add(vecA, vecB.Invert());
     }
 
@@ -40,6 +40,10 @@ pub const Vec3 = extern struct {
             vec.y * scalar, 
             vec.z * scalar
         );
+    }
+
+    pub fn divide(vec: Vec3, scalar: f32) Vec3 {
+        return Vec3.Multiply(vec, 1 / scalar);
     }
 
     pub fn Cross(vecA: Vec3, vecB: Vec3) Vec3 {
@@ -153,7 +157,7 @@ pub const Mat4 = struct {
     }
 
     pub fn LookAt(position: Vec3, target: Vec3, up: Vec3) Mat4 {
-        const cam_direction = Vec3.Substract(position, target).Normalize();
+        const cam_direction = Vec3.substract(position, target).Normalize();
         const cam_right = Vec3.Cross(up, cam_direction).Normalize();
         const cam_up = Vec3.Cross(cam_direction, cam_right);
 
