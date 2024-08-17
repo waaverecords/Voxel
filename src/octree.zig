@@ -22,10 +22,11 @@ const std = @import("std");
 //     };
 // }
 
-pub const OctreeNode = packed struct(u16) {
+pub const OctreeNode = packed struct(u112) {
+    center: Vec3,
     isLeaf: bool,
     data: DataUnion,
-    _: u3 = 0, // padding for alignment
+    _: u2 = 0, // padding for alignment
 
     pub fn dataNode(data: bool) OctreeNode {
         return OctreeNode {
@@ -35,7 +36,10 @@ pub const OctreeNode = packed struct(u16) {
     }
 
     const DataUnion = packed union {
-        childrenIndex: u12,
+        // max OctreeNode count for a max depth of D
+        // [leaf], [parent][leaf][leaf][leaf][leaf][leaf][leaf][leaf][leaf], etc...
+        // (1/7) * (8^(D + 1) - 1)
+        childrenIndex: u13,
         data: bool,
     };
 };
@@ -60,5 +64,23 @@ pub const Octree = struct {
 };
 
 test "test" {
+    const print = std.debug.print;
+
     const octree = try Octree.init(std.heap.c_allocator); defer octree.deinit();
+    
+    const x: u32 = 100;
+    const y: u32 = 0;
+    const z: u32 = 0;
+    const level = 0;
+    print("base ({d}, {d}, {d}, {d})\n", .{ x, y, z, level });
+
+    const xAtLevel: u1 = @intCast(x >> level & 1);
+    const yAtLevel: u1 = @intCast(y >> level & 1);
+    const zAtLevel: u1 = @intCast(z >> level & 1);
+    print("atLevel ({d}, {d}, {d}, {d})\n", .{ xAtLevel, yAtLevel, zAtLevel, level });
+
+    print("offset ({d}, {d})\n", .{
+        (@as(u3, @intCast(xAtLevel)) << 2) | (@as(u3, @intCast(yAtLevel)) << 1) | @as(u3, @intCast(zAtLevel)),
+        level
+    });
 }
