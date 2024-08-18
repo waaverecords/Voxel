@@ -55,6 +55,7 @@ pub const Octree = struct {
     const This = @This();
 
     pub fn init(allocator: std.mem.Allocator, center: Vec3) !*This {
+
         const octree = try allocator.create(This);
         octree.allocator = allocator;
         octree.nodes = try allocator.alloc(OctreeNode, 1);
@@ -83,23 +84,30 @@ pub const Octree = struct {
                     @memcpy(newNodes[0..this.nodes.len], this.nodes);
                     this.allocator.free(this.nodes);
                     this.nodes = newNodes;
-                    this.nodes.len = newSize;
+
+                    node = this.nodes[nodeIndex];
+                }
+                this.nodes.len = newSize;
+
+                const halfSize = node.center.divide(2); // TODO: fix for center(0, 0, 0)
+                for (this.nodes[this.nodes.len - 8..], 0..) |*newNode, i| {
+                    newNode.center = node.center.substract(Vec3.Init(
+                        halfSize.x * @as(f32, @floatFromInt(-(@as(i4, @intCast(i)) >> 2 & 1) | 1)),
+                        halfSize.y * @as(f32, @floatFromInt(-(@as(i4, @intCast(i)) >> 1 & 1) | 1)),
+                        halfSize.z * @as(f32, @floatFromInt(-(@as(i4, @intCast(i)) & 1) | 1))
+                    ));
+                    newNode.isLeaf = true;
+                    newNode.data.data = data; // TODO: think we if need to do this, or just set second child
                 }
 
+                const childrenIndex: u13 = @intCast(this.nodes.len - 8);
+                var firstChildNode = this.nodes[childrenIndex];
+                firstChildNode.data = node.data;
+
                 node.isLeaf = false;
-                node.data.childrenIndex = @intCast(this.nodes.len - 8);
+                node.data.childrenIndex = childrenIndex;
 
-                // TODO: move leaf to children
-
-                const halfSize = node.center.divide(2);
-                for (this.nodes[this.nodes.len - 8..], 0..) |*newNode, i|
-                    newNode.center = node.center.substract(Vec3.Init(
-                        halfSize.x * -(@as(i64, @bitCast(i)) >> 2 & 1) | 1,
-                        halfSize.y * -(@as(i64, @bitCast(i)) >> 1 & 1) | 1,
-                        halfSize.z * -(@as(i64, @bitCast(i)) & 1) | 1
-                    ));
-
-                nodeIndex = node.data.childrenIndex;
+                return;
             }
             
             const r = node.center.substract(position.*);
@@ -108,13 +116,17 @@ pub const Octree = struct {
             const zSign: u3 = @intFromBool(std.math.signbit(r.z));
             const offset = xSign << 2 | ySign << 1 | zSign;
 
-            nodeIndex += offset;
+            nodeIndex = node.data.childrenIndex + offset;
         }
-        unreachable;
     }
 };
 
 test "expect gg" {
-    const octree = try Octree.init(std.testing.allocator, Vec3{}); defer octree.deinit();
+    const octree = try Octree.init(std.testing.allocator, Vec3.Init(5, 5, 5)); defer octree.deinit();
     try octree.setNode(&Vec3.Init(-0.000001, 0.0001, 0), true);
+    try octree.setNode(&Vec3.Init(6, 9, -5), true);
+
+    try octree.setNode(&Vec3.Init(0, 0, 0), true);
+    try octree.setNode(&Vec3.Init(0, 0, 0), true);
+    try octree.setNode(&Vec3.Init(0, 0, 0), true);
 }
