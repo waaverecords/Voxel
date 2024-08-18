@@ -1,5 +1,7 @@
 const Vec3 = @import("math.zig").Vec3;
 const std = @import("std");
+const print = std.debug.print;
+const expect = std.testing.expect;
 
 // pub fn from3DCubeXYZ(
 //     comptime ValueType: type,
@@ -24,12 +26,13 @@ const std = @import("std");
 
 pub const OctreeNode = packed struct(u112) {
     center: Vec3,
-    isLeaf: bool,
     data: DataUnion,
     _: u2 = 0, // padding for alignment
+    isLeaf: bool,
 
-    pub fn dataNode(data: bool) OctreeNode {
+    pub fn dataNode(center: Vec3, data: bool) OctreeNode {
         return OctreeNode {
+            .center = center,
             .isLeaf = true,
             .data = DataUnion { .data  = data }
         };
@@ -44,16 +47,18 @@ pub const OctreeNode = packed struct(u112) {
     };
 };
 
+// TODO: rename to PointRegionOctree?
 pub const Octree = struct {
     nodes: []OctreeNode,
     allocator: std.mem.Allocator,
 
     const This = @This();
 
-    pub fn init(allocator: std.mem.Allocator) !*This {
+    pub fn init(allocator: std.mem.Allocator, center: Vec3) !*This {
         const octree = try allocator.create(This);
         octree.allocator = allocator;
-        octree.nodes = try allocator.alloc(OctreeNode, 0);
+        octree.nodes = try allocator.alloc(OctreeNode, 1);
+        octree.nodes[0] = OctreeNode.dataNode(center, false);
         return octree;
     }
 
@@ -61,26 +66,55 @@ pub const Octree = struct {
         this.allocator.free(this.nodes);
         this.allocator.destroy(this);
     }
+
+    pub fn setNode(this: *This, position: *const Vec3, data: bool) !void {
+        var nodeIndex: u13 = 0; // same as OctreeNode.data.childrenIndex
+        var node = this.nodes[nodeIndex];
+        while (true) {
+
+            if (node.isLeaf) {
+
+                if (node.data.data == data)
+                    return;
+
+                const newSize = this.nodes.len + 8;
+                if (!this.allocator.resize(this.nodes, newSize)) {
+                    const newNodes = try this.allocator.alloc(OctreeNode, newSize);
+                    @memcpy(newNodes[0..this.nodes.len], this.nodes);
+                    this.allocator.free(this.nodes);
+                    this.nodes = newNodes;
+                    this.nodes.len = newSize;
+                }
+
+                node.isLeaf = false;
+                node.data.childrenIndex = @intCast(this.nodes.len - 8);
+
+                // TODO: move leaf to children
+
+                const halfSize = node.center.divide(2);
+                for (this.nodes[this.nodes.len - 8..], 0..) |*newNode, i|
+                    newNode.center = node.center.substract(Vec3.Init(
+                        halfSize.x * -(@as(i64, @bitCast(i)) >> 2 & 1) | 1,
+                        halfSize.y * -(@as(i64, @bitCast(i)) >> 1 & 1) | 1,
+                        halfSize.z * -(@as(i64, @bitCast(i)) & 1) | 1
+                    ));
+
+                nodeIndex = node.data.childrenIndex;
+            }
+            
+            const r = node.center.substract(position.*);
+            const xSign: u3 = @intFromBool(std.math.signbit(r.x));
+            const ySign: u3 = @intFromBool(std.math.signbit(r.y));
+            const zSign: u3 = @intFromBool(std.math.signbit(r.z));
+            const offset = xSign << 2 | ySign << 1 | zSign;
+
+            nodeIndex += offset;
+        }
+        unreachable;
+    }
 };
 
-test "test" {
-    const print = std.debug.print;
-
-    const octree = try Octree.init(std.heap.c_allocator); defer octree.deinit();
-    
-    const x: u32 = 100;
-    const y: u32 = 0;
-    const z: u32 = 0;
-    const level = 0;
-    print("base ({d}, {d}, {d}, {d})\n", .{ x, y, z, level });
-
-    const xAtLevel: u1 = @intCast(x >> level & 1);
-    const yAtLevel: u1 = @intCast(y >> level & 1);
-    const zAtLevel: u1 = @intCast(z >> level & 1);
-    print("atLevel ({d}, {d}, {d}, {d})\n", .{ xAtLevel, yAtLevel, zAtLevel, level });
-
-    print("offset ({d}, {d})\n", .{
-        (@as(u3, @intCast(xAtLevel)) << 2) | (@as(u3, @intCast(yAtLevel)) << 1) | @as(u3, @intCast(zAtLevel)),
-        level
-    });
+test "expect gg" {
+    const octree = try Octree.init(std.testing.allocator, Vec3{}); defer octree.deinit();
+    try octree.setNode(&Vec3.Init(-0.000001, 0.0001, 0), true);
 }

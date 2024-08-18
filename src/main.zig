@@ -10,7 +10,7 @@ const Camera = @import("camera.zig").Camera;
 const EntitiesStorage = @import("ecs.zig").EntitiesStorage;
 
 const windowWidth = 800;
-const widonwHeight = 600;
+const widonwHeight = 640;
 
 var camera = Camera {
     .fov = 75,
