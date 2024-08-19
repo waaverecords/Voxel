@@ -27,15 +27,36 @@ const expect = std.testing.expect;
 pub const OctreeNode = packed struct(u112) {
     center: Vec3,
     data: DataUnion,
-    _: u2 = 0, // padding for alignment
+    _: u1 = 0, // padding for alignment
+    hasData: bool,
     isLeaf: bool,
+
+    const This = @This();
 
     pub fn dataNode(center: Vec3, data: bool) OctreeNode {
         return OctreeNode {
             .center = center,
             .isLeaf = true,
+            .hasData = true,
             .data = DataUnion { .data  = data }
         };
+    }
+
+    pub fn setAsLeafWithData(this: *This, data: bool) void {
+        this.data.data = data;
+        this.isLeaf = true;
+        this.hasData = true;
+    }
+
+    pub fn setAsLeafWithoutData(this: *This) void {
+        this.isLeaf = true;
+        this.hasData = false;
+    }
+
+    pub fn setAsParent(this: *This, childrenIndex: u13) void {
+        this.data.childrenIndex  = childrenIndex;
+        this.isLeaf = false;
+        this.hasData = false;
     }
 
     const DataUnion = packed union {
@@ -74,6 +95,9 @@ pub const Octree = struct {
         while (true) {
 
             if (node.isLeaf) {
+                
+                if (!node.hasData)
+                    node.setAsLeafWithData(data);
 
                 if (node.data.data == data)
                     return;
@@ -96,16 +120,17 @@ pub const Octree = struct {
                         halfSize.y * @as(f32, @floatFromInt(-(@as(i4, @intCast(i)) >> 1 & 1) | 1)),
                         halfSize.z * @as(f32, @floatFromInt(-(@as(i4, @intCast(i)) & 1) | 1))
                     ));
-                    newNode.isLeaf = true;
-                    newNode.data.data = data; // TODO: think we if need to do this, or just set second child
+                    newNode.setAsLeafWithoutData();
                 }
 
                 const childrenIndex: u13 = @intCast(this.nodes.len - 8);
                 var firstChildNode = this.nodes[childrenIndex];
-                firstChildNode.data = node.data;
+                firstChildNode.setAsLeafWithData(node.data.data);
 
-                node.isLeaf = false;
-                node.data.childrenIndex = childrenIndex;
+                var secondChildNode = this.nodes[childrenIndex + 1];
+                secondChildNode.setAsLeafWithData(data);
+
+                node.setAsParent(childrenIndex);
 
                 return;
             }
