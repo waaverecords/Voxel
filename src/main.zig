@@ -14,7 +14,7 @@ const widonwHeight = 640;
 
 var camera = Camera {
     .fov = 75,
-    .position = math.Vec3.Init(0, 2, 0),
+    .position = math.Vec3.Init(-5, 2, 0),
 };
 
 pub fn main() !void {
@@ -226,6 +226,22 @@ pub fn main() !void {
 
     var entities = try EntitiesStorage.init(allocator);
     defer entities.deinit();
+
+    // send array to gpu
+
+    const worldSize2: usize = 2 * 2 * 2;
+    var voxels2: [worldSize2]u32 =  .{ 0 } ** worldSize2;
+    // normally we'd want to packed the bools in a 32 bits type
+    // glsl bool take 32 bits ...
+    voxels2[4] = 1;
+    voxels2[6] = 1;
+
+    var SSBO: gl.uint = 0;
+
+    gl.GenBuffers(1, @ptrCast(&SSBO)); defer gl.DeleteBuffers(1, @ptrCast(&SSBO));
+    gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, SSBO);
+    gl.BufferData(gl.SHADER_STORAGE_BUFFER, @sizeOf(@TypeOf(voxels2)), &voxels2, gl.DYNAMIC_DRAW);
+    gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, 0, SSBO);
 
     while (!glfw.windowShouldClose(window)) {
 
