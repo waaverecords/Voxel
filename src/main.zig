@@ -233,7 +233,9 @@ pub fn main() !void {
     var voxels2: [worldSize2]u32 =  .{ 0 } ** worldSize2;
     // normally we'd want to packed the bools in a 32 bits type
     // glsl bool take 32 bits ...
+    voxels2[0] = 1;
     voxels2[4] = 1;
+    voxels2[5] = 1;
     voxels2[6] = 1;
 
     var SSBO: gl.uint = 0;
