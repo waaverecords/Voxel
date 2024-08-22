@@ -222,21 +222,29 @@ pub fn main() !void {
     var frame_count: i64 = 0;
     var start_time = std.time.microTimestamp();
 
-    const camera_speed = 0.0025;
+    const camera_speed = 0.1;
 
     var entities = try EntitiesStorage.init(allocator);
     defer entities.deinit();
 
     // send array to gpu
 
-    const worldSize2: usize = 2 * 2 * 2;
-    var voxels2: [worldSize2]u32 =  .{ 0 } ** worldSize2;
+    const worldSize2: u32 = 1024;
+    // TODO: packed type in u32, or else memory will be bust
+    var voxels2: [worldSize2]u32 =  .{ 1 } ** worldSize2;
     // normally we'd want to packed the bools in a 32 bits type
     // glsl bool take 32 bits ...
     voxels2[0] = 1;
     voxels2[4] = 1;
     voxels2[5] = 1;
     voxels2[6] = 1;
+    voxels2[150] = 1;
+    voxels2[152] = 1;
+    voxels2[153] = 1;
+    voxels2[154] = 1;
+    voxels2[155] = 1;
+    voxels2[158] = 1;
+    voxels2[299] = 1;
 
     var SSBO: gl.uint = 0;
 

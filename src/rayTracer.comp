@@ -44,6 +44,22 @@ bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition, flo
 	return true;
 }
 
+vec3 mortonToVec3(uint morton) {
+	// TODO: optimise this, either go with full it shifting, or go with precomputed tables
+    uint x = 0u;
+    uint y = 0u;
+    uint z = 0u;
+    uint shift = 0u;
+
+    for (uint i = 0u; i < 10u; i++) { // 10 bits per dimension
+        x |= ((morton >> (2u * i)) & 1u) << i;
+        y |= ((morton >> (2u * i + 1u)) & 1u) << i;
+        z |= ((morton >> (2u * i + 2u)) & 1u) << i;
+    }
+
+    return vec3(float(x), float(y), float(z));
+}
+
 void main() {
     vec4 color = vec4(0, 0, 0, 1.0);
 	ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
@@ -74,16 +90,18 @@ void main() {
 	vec3 closestHitFaceNormal;
 	float closestHitDistance = 1.0 / 0.0;
 
-	for (int i = 0; i < 8; i++) {
-		
+	for (uint i = 0; i < 1024; i++) {
+
 		if (!voxels[i])
 			continue;
 
-		int x = (i >> 2) & 1;
-		int y = (i >> 1) & 1;
-		int z = i & 1;
+		uint x = (i >> 2) & 1;
+		uint y = (i >> 1) & 1;
+		uint z = i & 1;
 
-		if (rayIntersectsCube(rayOrigin, rayDirection, vec3(x, y, z), voxelSize, hitPoint, hitFaceNormal)) {
+		vec3 voxelPosition = mortonToVec3(i);
+
+		if (rayIntersectsCube(rayOrigin, rayDirection, voxelPosition, voxelSize, hitPoint, hitFaceNormal)) {
 			hit = true;
 			float hitDistance = length(hitPoint - rayOrigin);
 			if (hitDistance < closestHitDistance) {
