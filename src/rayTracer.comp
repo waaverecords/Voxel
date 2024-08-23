@@ -44,20 +44,21 @@ bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition, flo
 	return true;
 }
 
-vec3 mortonToVec3(uint morton) {
-	// TODO: optimise this, either go with full it shifting, or go with precomputed tables
-    uint x = 0u;
-    uint y = 0u;
-    uint z = 0u;
-    uint shift = 0u;
+uint compact1By2(uint x) {
+    x &= 0x09249249;
+    x = (x ^ (x >> 2)) & 0x030c30c3;
+    x = (x ^ (x >> 4)) & 0x0300f00f;
+    x = (x ^ (x >> 8)) & 0x030000ff;
+    x = (x ^ (x >> 16)) & 0x000003ff;
+    return x;
+}
 
-    for (uint i = 0u; i < 10u; i++) { // 10 bits per dimension
-        x |= ((morton >> (2u * i)) & 1u) << i;
-        y |= ((morton >> (2u * i + 1u)) & 1u) << i;
-        z |= ((morton >> (2u * i + 2u)) & 1u) << i;
-    }
-
-    return vec3(float(x), float(y), float(z));
+uvec3 mortonToVec3(uint mortonCode) {
+    return uvec3(
+        compact1By2(mortonCode >> 0),
+        compact1By2(mortonCode >> 1),
+        compact1By2(mortonCode >> 2)
+    );
 }
 
 void main() {
@@ -94,10 +95,6 @@ void main() {
 
 		if (!voxels[i])
 			continue;
-
-		uint x = (i >> 2) & 1;
-		uint y = (i >> 1) & 1;
-		uint z = i & 1;
 
 		vec3 voxelPosition = mortonToVec3(i);
 
