@@ -26,49 +26,59 @@ pub fn VoxelDataStorage(comptime VoxelDataType: type) type {
             this.allocator.destroy(this);
         }
 
-        pub fn setDataAtPosition(this: *This, data: VoxelDataType, position: *const Vec3) !void {
+        pub fn setData(this: *This, data: VoxelDataType, position: *const Vec3) !void {
             // TODO: assert position
             _ = position;
 
             const morton = 5; // TODO: get morton value from position
 
-            this.header |= 1 << morton;
+            const hasDataMask = 1 << morton;
+
+            const newHeader = this.header | hasDataMask;
 
             const mask = 1  << (morton + 1) - 1;
-            const bitCount = @popCount(this.header & mask);
+            const bitCount = @popCount(newHeader & mask);
             const dataIndex = if (bitCount > 0) bitCount -  1 else 0;
 
-            // TODO: handle when position has data already
-            // TODO: extract to grow function?
+            const hasData = this.header & hasDataMask > 0;
+            if (hasData) {
+                this.voxelData[dataIndex] = data;
+                return;
+            }
+            
+            try this.insertData(data, dataIndex);
+            this.header = newHeader;
+        }
+
+        fn insertData(this: *This, data: VoxelDataType, index: usize) !void {
             const newSize = this.voxelData.len + 1;
             const newVoxelData = try this.allocator.alloc(VoxelDataType, newSize);
-            @memcpy(newVoxelData[0..dataIndex], this.voxelData[0..dataIndex]);
-            @memcpy(newVoxelData[dataIndex + 1..], this.voxelData[dataIndex..]);
+            @memcpy(newVoxelData[0..index], this.voxelData[0..index]);
+            @memcpy(newVoxelData[index + 1..], this.voxelData[index..]);
             this.allocator.free(this.voxelData);
             this.voxelData = newVoxelData;
             this.voxelData.len = newSize;
 
-            this.voxelData[dataIndex] = data;
+            this.voxelData[index] = data;
         }
     };
 }
 
-test VoxelDataStorage {
+test "insert data" {
     const testing = @import("std").testing;
     const allocator = testing.allocator;
-    const expect = testing.expect;
 
     var storage = try VoxelDataStorage(u8).init(allocator); defer storage.deinit();
 
-    try storage.setDataAtPosition(8, &Vec3.Init(0, 0, 0));
-    try expect(storage.voxelData[0] == 8);
+    try storage.insertData(0, 0);
+    try testing.expectEqualSlices(u8, &[_]u8 { 0 }, storage.voxelData);
 
-    try storage.setDataAtPosition(10, &Vec3.Init(0, 0, 0));
-    try expect(storage.voxelData[0] == 10);
-    try expect(storage.voxelData[1] == 8);
+    try storage.insertData(1, 0);
+    try testing.expectEqualSlices(u8, &[_]u8 { 1, 0 }, storage.voxelData);
 
-    try storage.setDataAtPosition(12, &Vec3.Init(0, 0, 0));
-    try expect(storage.voxelData[0] == 12);
-    try expect(storage.voxelData[1] == 10);
-    try expect(storage.voxelData[2] == 8);
+    try storage.insertData(2, 2);
+    try testing.expectEqualSlices(u8, &[_]u8 { 1, 0, 2 }, storage.voxelData);
+
+    try storage.insertData(3, 1);
+    try testing.expectEqualSlices(u8, &[_]u8 { 1, 3, 0, 2 }, storage.voxelData);
 }
