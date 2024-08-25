@@ -51,19 +51,17 @@ bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition, flo
 }
 
 uint compact1By2(uint x) {
-    x &= 0x09249249;
-    x = (x ^ (x >> 2)) & 0x030c30c3;
-    x = (x ^ (x >> 4)) & 0x0300f00f;
-    x = (x ^ (x >> 8)) & 0x030000ff;
-    x = (x ^ (x >> 16)) & 0x000003ff;
+	x &= 0x24;
+    x = (x ^ (x >> 2)) & 41;
+    x = (x ^ (x >> 4)) & 3;
     return x;
 }
 
 uvec3 mortonToVec3(uint mortonCode) {
     return uvec3(
-        compact1By2(mortonCode >> 0),
-        compact1By2(mortonCode >> 1),
-        compact1By2(mortonCode >> 2)
+        compact1By2(mortonCode),
+        compact1By2(mortonCode << 1),
+        compact1By2(mortonCode << 2)
     );
 }
 
@@ -96,10 +94,17 @@ void main() {
 	vec3 hitPoint;
 	vec3 closestHitFaceNormal;
 	float closestHitDistance = 1.0 / 0.0;
+	uint closestDataIndex = 0;
 
-	for (uint i = 0; i < 3; i++) {
+	uint64_t morton = header;
+	uint dataIndex = 0;
 
-		if (int(voxelData[i]) == 0)
+	for (uint i = 0; morton != 0; i++) {
+		
+		bool hasVoxel = bool(morton & 1);
+		morton >>= 1;
+
+		if (!hasVoxel) 
 			continue;
 
 		vec3 voxelPosition = mortonToVec3(i);
@@ -110,12 +115,22 @@ void main() {
 			if (hitDistance < closestHitDistance) {
 				closestHitDistance = hitDistance;
 				closestHitFaceNormal = hitFaceNormal;
+				closestDataIndex = dataIndex;
 			}
 		}
+
+		dataIndex++;
 	}
 
+	vec4[3] colors = vec4[3](
+		vec4(1, 0, 0, 1),
+		vec4(0, 1, 0, 1),
+		vec4(0, 0, 1, 1)
+	);
+
 	if (hit) {
-		color = vec4(1, 0, 0, 1);
+		uint8_t data = voxelData[closestDataIndex];
+		color = colors[data];
 
 		// lighting
 		// https://math.hws.edu/graphicsbook/c7/s2.html

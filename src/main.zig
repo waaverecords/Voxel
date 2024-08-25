@@ -60,11 +60,8 @@ pub fn main() !void {
                 vertice[0] = @floatFromInt(x);
                 vertice[1] = @as(f32, @floatFromInt(y)) * -1;
                 vertice[2] = @floatFromInt(z);
-                print("({d}, {d}, {d})", .{ vertice[0], vertice[1], vertice[2] });
             }
-            print("\n", .{});
         }
-        print("\n", .{});
     }
 
     const vertexIndices = [_]f32 { 0 } ** (voxelCount * 12 * 3); // 12 triangles per cube, 3 indices per triangle
@@ -223,7 +220,7 @@ pub fn main() !void {
     var frame_count: i64 = 0;
     var start_time = std.time.microTimestamp();
 
-    const camera_speed = 0.1;
+    const camera_speed = 0.005;
 
     var entities = try EntitiesStorage.init(allocator);
     defer entities.deinit();
@@ -255,9 +252,11 @@ pub fn main() !void {
     gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, 0, SSBO);
 
     var voxelStorage = try VoxelDataStorage.init(&allocator); defer voxelStorage.deinit();
-    try voxelStorage.setData(1, &math.Vec3.Init(0, 0, 0));
+    try voxelStorage.setData(0, &math.Vec3.Init(0, 0, 0));
+    try voxelStorage.setData(1, &math.Vec3.Init(1, 1, 1));
     try voxelStorage.setData(1, &math.Vec3.Init(0, 0, 1));
-    try voxelStorage.setData(1, &math.Vec3.Init(0, 1, 0));
+    try voxelStorage.setData(2, &math.Vec3.Init(3, 3, 3));
+    try voxelStorage.setData(0, &math.Vec3.Init(3, 2, 3));
 
     var SSBO2: gl.uint = 0;
 
