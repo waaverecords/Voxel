@@ -1,5 +1,7 @@
 const Vec3 = @import("math.zig").Vec3;
 const Allocator = @import("std").mem.Allocator;
+const assert = @import("std").debug.assert;
+const math = @import("std").math;
 
 pub fn VoxelDataStorage(comptime VoxelDataType: type) type {
     return struct {
@@ -17,6 +19,7 @@ pub fn VoxelDataStorage(comptime VoxelDataType: type) type {
         pub fn init(allocator: Allocator) !*This {
             const storage = try allocator.create(This);
             storage.allocator = allocator;
+            storage.header = 0;
             storage.voxelData = try allocator.alloc(VoxelDataType, 0);
             return storage;
         }
@@ -27,19 +30,23 @@ pub fn VoxelDataStorage(comptime VoxelDataType: type) type {
         }
 
         pub fn setData(this: *This, data: VoxelDataType, position: *const Vec3) !void {
-            // TODO: assert position
-            _ = position;
+            assert(0 <= position.x and position.x < 4);
+            assert(0 <= position.y and position.y < 4);
+            assert(0 <= position.z and position.z < 4);
 
-            const morton = 5; // TODO: get morton value from position
-
-            const hasDataMask = 1 << morton;
+            const morton: u6 = 
+                part1By2(@as(u6, @intFromFloat(position.x))) |
+                part1By2(@as(u6, @intFromFloat(position.y))) >> 1 |
+                part1By2(@as(u6, @intFromFloat(position.z))) >> 2;
+                
+            const hasDataMask = @as(u64, 1) << morton;
 
             const newHeader = this.header | hasDataMask;
 
-            const mask = 1  << (morton + 1) - 1;
+            const mask = if (morton == 63) math.maxInt(u64) else (@as(u64, 1) << (morton + 1)) - 1;
             const bitCount = @popCount(newHeader & mask);
-            const dataIndex = if (bitCount > 0) bitCount -  1 else 0;
-
+            const dataIndex = if (bitCount > 0) bitCount - 1 else 0;
+            
             const hasData = this.header & hasDataMask > 0;
             if (hasData) {
                 this.voxelData[dataIndex] = data;
@@ -64,7 +71,37 @@ pub fn VoxelDataStorage(comptime VoxelDataType: type) type {
     };
 }
 
-test "insert data" {
+fn part1By2(operand: u32) u6 {
+    var x: u6 = @as(u2, @truncate(operand));
+    x = (x | (x << 4)) & 0b100011;
+    x = (x | (x << 2)) & 0b100100;
+    return x;
+}
+
+test "setData" {
+    const testing = @import("std").testing;
+    const allocator = testing.allocator;
+    
+    var storage = try VoxelDataStorage(u8).init(allocator); defer storage.deinit();
+
+    try storage.setData(0, &Vec3.Init(0, 0, 0));
+    try testing.expect(storage.header == 0b1);
+    try testing.expectEqualSlices(u8, &[_]u8 { 0 }, storage.voxelData);
+
+    try storage.setData(1, &Vec3.Init(3, 3, 3));
+    try testing.expect(storage.header == 0b1000000000000000000000000000000000000000000000000000000000000001);
+    try testing.expectEqualSlices(u8, &[_]u8 { 0, 1 }, storage.voxelData);
+
+    try storage.setData(2, &Vec3.Init(3, 3, 2));
+    try testing.expect(storage.header == 0b1100000000000000000000000000000000000000000000000000000000000001);
+    try testing.expectEqualSlices(u8, &[_]u8 { 0, 2, 1 }, storage.voxelData);
+
+    try storage.setData(3, &Vec3.Init(3, 3, 2));
+    try testing.expect(storage.header == 0b1100000000000000000000000000000000000000000000000000000000000001);
+    try testing.expectEqualSlices(u8, &[_]u8 { 0, 3, 1 }, storage.voxelData);
+}
+
+test "insertData" {
     const testing = @import("std").testing;
     const allocator = testing.allocator;
 
