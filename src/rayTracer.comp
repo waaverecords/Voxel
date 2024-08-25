@@ -1,9 +1,15 @@
 #version 460 core
 
+#extension GL_NV_gpu_shader5 : enable
+
 layout(local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
 layout(rgba32f, binding = 0) uniform image2D viewport;
 layout(std430, binding = 0) buffer DataBuffer {
 	bool voxels[];
+};
+layout(std430, binding = 1) buffer VoxelDataStorage {
+	uint64_t header;
+	uint8_t voxelData[];
 };
 
 uniform vec3 cameraPosition;
@@ -91,9 +97,9 @@ void main() {
 	vec3 closestHitFaceNormal;
 	float closestHitDistance = 1.0 / 0.0;
 
-	for (uint i = 0; i < 1024; i++) {
+	for (uint i = 0; i < 3; i++) {
 
-		if (!voxels[i])
+		if (int(voxelData[i]) == 0)
 			continue;
 
 		vec3 voxelPosition = mortonToVec3(i);

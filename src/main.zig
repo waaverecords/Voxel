@@ -8,6 +8,7 @@ const glfw = @import("glfw");
 const math = @import("math.zig");
 const Camera = @import("camera.zig").Camera;
 const EntitiesStorage = @import("ecs.zig").EntitiesStorage;
+const VoxelDataStorage = @import("voxelDataStorage.zig").VoxelDataStorage;
 
 const windowWidth = 800;
 const widonwHeight = 640;
@@ -216,8 +217,8 @@ pub fn main() !void {
     // gl.Enable(gl.BLEND);
     // gl.Enable(gl.CULL_FACE);
     // gl.CullFace(gl.BACK);
-    //gl.Viewport(0, 0, windowWidth, widonwHeight);
-    //gl.FrontFace(gl.CW);
+    // gl.Viewport(0, 0, windowWidth, widonwHeight);
+    // gl.FrontFace(gl.CW);
 
     var frame_count: i64 = 0;
     var start_time = std.time.microTimestamp();
@@ -252,6 +253,18 @@ pub fn main() !void {
     gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, SSBO);
     gl.BufferData(gl.SHADER_STORAGE_BUFFER, @sizeOf(@TypeOf(voxels2)), &voxels2, gl.DYNAMIC_DRAW);
     gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, 0, SSBO);
+
+    var voxelStorage = try VoxelDataStorage.init(&allocator); defer voxelStorage.deinit();
+    try voxelStorage.setData(1, &math.Vec3.Init(0, 0, 0));
+    try voxelStorage.setData(1, &math.Vec3.Init(0, 0, 1));
+    try voxelStorage.setData(1, &math.Vec3.Init(0, 1, 0));
+
+    var SSBO2: gl.uint = 0;
+
+    gl.GenBuffers(1, @ptrCast(&SSBO2)); defer gl.DeleteBuffers(1, @ptrCast(&SSBO2));
+    gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, SSBO2);
+    gl.BufferData(gl.SHADER_STORAGE_BUFFER, @as(isize, @intCast(@sizeOf(@TypeOf(voxelStorage.voxelData[0])) * voxelStorage.voxelData.len)), voxelStorage.voxelData.ptr, gl.DYNAMIC_DRAW);
+    gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, 1, SSBO2);
 
     while (!glfw.windowShouldClose(window)) {
 
