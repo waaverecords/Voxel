@@ -73,6 +73,36 @@ pub const VoxelDataStorage = struct {
 
         this.voxelData[index] = data;
     }
+
+    pub fn getIntersectionsWithRay(this: *This, rayPosition: Vec3, rayDirection: Vec3) void {
+        _ = this;
+
+        // TODO: if ray outside of grid, find intersection point with grid and
+
+        var rayDirectionNormalized = rayDirection.Normalize();
+
+        var currentVoxel = Vec3.Init(
+            @floor(rayPosition.x),
+            @floor(rayPosition.y),
+            @floor(rayPosition.z)
+        );
+        const step = Vec3.Init(
+            std.math.sign(rayDirectionNormalized.x) * 1,
+            std.math.sign(rayDirectionNormalized.y) * 1,
+            std.math.sign(rayDirectionNormalized.y) * 1
+        );
+        const nextVoxelBoundary = currentVoxel.Add(step);
+        var tMax = Vec3.Init(
+            if (rayDirection.x != 0) (nextVoxelBoundary.x - currentVoxel.x) / rayDirection.x else std.math.floatMax(f32),
+            if (rayDirection.y != 0) (nextVoxelBoundary.y - currentVoxel.y) / rayDirection.y else std.math.floatMax(f32),
+            if (rayDirection.z != 0) (nextVoxelBoundary.z - currentVoxel.z) / rayDirection.z else std.math.floatMax(f32)
+        );
+        var tDelta = Vec3.Init(
+            if (rayDirection.x != 0) 1 / (nextVoxelBoundary.x - currentVoxel.x) * step.x else std.math.floatMax(f32),
+            if (rayDirection.y != 0) 1 / (nextVoxelBoundary.y - currentVoxel.y) * step.y else std.math.floatMax(f32),
+            if (rayDirection.z != 0) 1 / (nextVoxelBoundary.z - currentVoxel.z) * step.z else std.math.floatMax(f32)
+        );
+    }
 };
 
 fn part1By2(operand: u32) u6 {
