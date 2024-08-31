@@ -16,9 +16,15 @@ uniform vec3 cameraPosition;
 uniform vec3 cameraDirection;
 uniform float cameraFov;
 
-bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition, float voxelSize, out vec3 hitPoint, out vec3 hitFaceNormal) {
-	vec3 minBound = cubePosition - vec3(voxelSize * 0.5);
-    vec3 maxBound = cubePosition + vec3(voxelSize * 0.5);
+struct RayCastHit {
+	vec3 point;
+	float distance;
+	vec3 normal;
+};
+
+bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition,  float cubeSize, out RayCastHit entryHit, out RayCastHit exitHit) {
+	vec3 minBound = cubePosition;
+    vec3 maxBound = cubePosition + vec3(cubeSize);
 
     vec3 tMin = (minBound - rayOrigin) / rayDirection;
     vec3 tMax = (maxBound - rayOrigin) / rayDirection;
@@ -32,20 +38,25 @@ bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition, flo
     if (tNear <= 0.0 || tNear >= tFar)
 		return false;
 		
-	hitPoint = rayOrigin + tNear * rayDirection;
+	entryHit.point = rayOrigin + tNear * rayDirection;
+	entryHit.distance = length(abs(entryHit.point - rayOrigin));
 
-	if (abs(hitPoint.x - minBound.x) < 0.001)
-		hitFaceNormal = vec3(-1.0, 0.0, 0.0);
-	else if (abs(hitPoint.x - maxBound.x) < 0.001)
-		hitFaceNormal = vec3(1.0, 0.0, 0.0);
-	else if (abs(hitPoint.y - minBound.y) < 0.001)
-		hitFaceNormal = vec3(0.0, -1.0, 0.0);
-	else if (abs(hitPoint.y - maxBound.y) < 0.001)
-		hitFaceNormal = vec3(0.0, 1.0, 0.0);
-	else if (abs(hitPoint.z - minBound.z) < 0.001)
-		hitFaceNormal = vec3(0.0, 0.0, -1.0);
-	else if (abs(hitPoint.z - maxBound.z) < 0.001)
-		hitFaceNormal = vec3(0.0, 0.0, 1.0);
+	if (abs(entryHit.point.x - minBound.x) < 0.001)
+		entryHit.normal = vec3(-1.0, 0.0, 0.0);
+	else if (abs(entryHit.point.x - maxBound.x) < 0.001)
+		entryHit.normal = vec3(1.0, 0.0, 0.0);
+	else if (abs(entryHit.point.y - minBound.y) < 0.001)
+		entryHit.normal = vec3(0.0, -1.0, 0.0);
+	else if (abs(entryHit.point.y - maxBound.y) < 0.001)
+		entryHit.normal = vec3(0.0, 1.0, 0.0);
+	else if (abs(entryHit.point.z - minBound.z) < 0.001)
+		entryHit.normal = vec3(0.0, 0.0, -1.0);
+	else if (abs(entryHit.point.z - maxBound.z) < 0.001)
+		entryHit.normal = vec3(0.0, 0.0, 1.0);
+
+	exitHit.point = rayOrigin + tFar * rayDirection;
+	// exitHit distance and normal will never be needed
+	// no need to calculate them
 
 	return true;
 }
@@ -87,13 +98,14 @@ void main() {
 		- cameraUp * -(float(pixelCoord.y * 2 - viewportSize.y) / viewportSize.y);
 	vec3 rayDirection = normalize(rayOrigin - cameraPosition);
 
-	float voxelSize = 1;
-
 	bool hit = false;
 	vec3 hitFaceNormal;
-	vec3 hitPoint;
-	vec3 closestHitFaceNormal;
-	float closestHitDistance = 1.0 / 0.0;
+	RayCastHit voxelEntryHit;
+	RayCastHit voxelExitHit;
+
+	RayCastHit closestVoxelHit;
+	closestVoxelHit.distance = 1.0 / 0.0;
+
 	uint closestDataIndex = 0;
 
 	uint64_t morton = header;
@@ -109,12 +121,10 @@ void main() {
 
 		vec3 voxelPosition = mortonToVec3(i);
 
-		if (rayIntersectsCube(rayOrigin, rayDirection, voxelPosition, voxelSize, hitPoint, hitFaceNormal)) {
+		if (rayIntersectsCube(rayOrigin, rayDirection, voxelPosition, 1, voxelEntryHit, voxelExitHit)) {
 			hit = true;
-			float hitDistance = length(hitPoint - rayOrigin);
-			if (hitDistance < closestHitDistance) {
-				closestHitDistance = hitDistance;
-				closestHitFaceNormal = hitFaceNormal;
+			if (voxelEntryHit.distance < closestVoxelHit.distance) {
+				closestVoxelHit = voxelEntryHit;
 				closestDataIndex = dataIndex;
 			}
 		}
@@ -140,7 +150,7 @@ void main() {
 		float specularIntensity = 0.3;
 		float specularExponent = 5;
 
-		float dotln = dot(invLightDirection, closestHitFaceNormal);
+		float dotln = dot(invLightDirection, closestVoxelHit.normal);
 		if (dotln <= 0)
 			color = vec4(vec3(0), 1);
 		else {
@@ -148,7 +158,7 @@ void main() {
 			color.rgb = (color * lightColor * dotln).rgb * lightColor.a;
 
 			// specular
-			vec3 lightReflectionDirection = reflect(invLightDirection * -1, closestHitFaceNormal);
+			vec3 lightReflectionDirection = reflect(invLightDirection * -1, closestVoxelHit.normal);
 			float i = dot(lightReflectionDirection, rayDirection * -1);
 			if (i > 0)
 				color.rgb += specularIntensity * pow(i, specularExponent) * lightColor.rgb;

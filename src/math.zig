@@ -6,6 +6,8 @@ pub const Vec3 = packed struct {
     y: f32 = 0,
     z: f32 = 0,
 
+    const This = @This();
+
     pub fn Init(x: f32, y: f32, z: f32) Vec3 {
         return Vec3 { .x = x, .y = y, .z = z };
     }
@@ -20,6 +22,15 @@ pub const Vec3 = packed struct {
 
     pub fn UnitZ() Vec3 {
         return Vec3.Init(0, 0, 1);
+    }
+
+    pub fn at(this: *const This, index: usize) *f32 {
+        return switch (index) {
+            0 => @constCast(&this.x),
+            1 => @constCast(&this.y),
+            2 => @constCast(&this.z),
+            else => @panic("Index out of bounds"), // TODO: figure out of @panic is the right thing to do
+        };
     }
 
     pub fn Add(vecA: Vec3, vecB: Vec3) Vec3 {

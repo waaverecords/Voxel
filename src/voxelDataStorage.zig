@@ -115,19 +115,18 @@ pub const VoxelDataStorage = struct {
 
         var voxelHits = std.ArrayList(Vec3).init(allocator);
         try voxelHits.append(currentVoxel);
-
+        
         while (!std.meta.eql(endVoxel, currentVoxel)) {
-            // TODO: move multiple directions if 2 tMax are equal
-            if (tMax.x <= tMax.y and tMax.x <= tMax.z) {
-                currentVoxel.x += step.x;
-                tMax.x += tDelta.x;
-            } else if (tMax.y <= tMax.x and tMax.y <= tMax.z) {
-                currentVoxel.y += step.y;
-                tMax.y += tDelta.y;
-            } else if (tMax.z <= tMax.x and tMax.z <= tMax.y) {
-                currentVoxel.z += step.z;
-                tMax.z += tDelta.z;
+            const minAxis: usize = if (tMax.x <= tMax.y and tMax.x <= tMax.z) 0 else if (tMax.y <= tMax.x and tMax.y <= tMax.z) 1 else 2;
+            const minTMax = tMax.at(minAxis).*;
+            
+            inline for (0..3) |i| {
+                if (tMax.at(i).* == minTMax) {
+                    currentVoxel.at(i).* += step.at(i).*;
+                    tMax.at(i).* += tDelta.at(i).*;
+                }
             }
+            // TODO: only append if voxel not empty
             try voxelHits.append(currentVoxel);
         }
 
@@ -148,12 +147,12 @@ test "getIntersectionsWithRay" {
 
     var storage = try VoxelDataStorage.init(&allocator); defer storage.deinit();
 
-    // const hits = try storage.getIntersectionsWithRay(allocator, Vec3.Init(3.5, 3.5, 3.5), Vec3.Init(0.5, 0.5, 0.5)); defer allocator.free(hits);
-    // try testing.expectEqual(4, hits.len);
-    // try testing.expectEqual(Vec3.Init(3, 3, 3), hits[0]);
-    // try testing.expectEqual(Vec3.Init(2, 2, 2), hits[1]);
-    // try testing.expectEqual(Vec3.Init(1, 1, 1), hits[2]);
-    // try testing.expectEqual(Vec3.Init(0, 0, 0), hits[3]);
+    const hits = try storage.getIntersectionsWithRay(allocator, Vec3.Init(3.5, 3.5, 3.5), Vec3.Init(0.5, 0.5, 0.5)); defer allocator.free(hits);
+    try testing.expectEqual(4, hits.len);
+    try testing.expectEqual(Vec3.Init(3, 3, 3), hits[0]);
+    try testing.expectEqual(Vec3.Init(2, 2, 2), hits[1]);
+    try testing.expectEqual(Vec3.Init(1, 1, 1), hits[2]);
+    try testing.expectEqual(Vec3.Init(0, 0, 0), hits[3]);
 
     const hits2 = try storage.getIntersectionsWithRay(allocator, Vec3.Init(0, 0, 0), Vec3.Init(2, 0, 0)); defer allocator.free(hits2);
     try testing.expectEqual(3, hits2.len);
