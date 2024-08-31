@@ -279,9 +279,9 @@ pub fn main() !void {
         if (glfw.getKey(window, glfw.KeyW) == glfw.Press)
             camera.position = camera.position.Add(cameraDirection.Multiply(camera_speed));
         if (glfw.getKey(window, glfw.KeyS) == glfw.Press)
-            camera.position = camera.position.substract(cameraDirection.Multiply(camera_speed));
+            camera.position = camera.position.subtract(cameraDirection.Multiply(camera_speed));
         if (glfw.getKey(window, glfw.KeyA) == glfw.Press)
-            camera.position = camera.position.substract(math.Vec3.Cross(cameraDirection, camera.up).Normalize().Multiply(camera_speed));
+            camera.position = camera.position.subtract(math.Vec3.Cross(cameraDirection, camera.up).Normalize().Multiply(camera_speed));
         if (glfw.getKey(window, glfw.KeyD) == glfw.Press)
             camera.position = camera.position.Add(math.Vec3.Cross(cameraDirection, camera.up).Normalize().Multiply(camera_speed));
 

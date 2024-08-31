@@ -74,34 +74,64 @@ pub const VoxelDataStorage = struct {
         this.voxelData[index] = data;
     }
 
-    pub fn getIntersectionsWithRay(this: *This, rayPosition: Vec3, rayDirection: Vec3) void {
+    pub fn getIntersectionsWithRay(this: *This, allocator: Allocator, rayStart: Vec3, rayEnd: Vec3) ![]Vec3 {
         _ = this;
-
         // TODO: if ray outside of grid, find intersection point with grid and
 
-        var rayDirectionNormalized = rayDirection.Normalize();
-
         var currentVoxel = Vec3.Init(
-            @floor(rayPosition.x),
-            @floor(rayPosition.y),
-            @floor(rayPosition.z)
+            @floor(rayStart.x),
+            @floor(rayStart.y),
+            @floor(rayStart.z)
         );
+        const endVoxel = Vec3.Init(
+            @floor(rayEnd.x), 
+            @floor(rayEnd.y), 
+            @floor(rayEnd.z)
+        );
+
+        const ray = rayEnd.subtract(rayStart);
+        const rayDirection = ray.Normalize();
+        
         const step = Vec3.Init(
-            std.math.sign(rayDirectionNormalized.x) * 1,
-            std.math.sign(rayDirectionNormalized.y) * 1,
-            std.math.sign(rayDirectionNormalized.y) * 1
+            std.math.sign(ray.x),
+            std.math.sign(ray.y),
+            std.math.sign(ray.z)
         );
-        const nextVoxelBoundary = currentVoxel.Add(step);
+        const nextVoxelBoundary = Vec3.Init(
+            currentVoxel.x + if (step.x > 0) step.x else 0,
+            currentVoxel.y + if (step.y > 0) step.y else 0,
+            currentVoxel.z + if (step.z > 0) step.z else 0    
+        );
         var tMax = Vec3.Init(
-            if (rayDirection.x != 0) (nextVoxelBoundary.x - currentVoxel.x) / rayDirection.x else std.math.floatMax(f32),
-            if (rayDirection.y != 0) (nextVoxelBoundary.y - currentVoxel.y) / rayDirection.y else std.math.floatMax(f32),
-            if (rayDirection.z != 0) (nextVoxelBoundary.z - currentVoxel.z) / rayDirection.z else std.math.floatMax(f32)
+            if (rayDirection.x != 0) (nextVoxelBoundary.x - rayStart.x) / rayDirection.x else std.math.floatMax(f32),
+            if (rayDirection.y != 0) (nextVoxelBoundary.y - rayStart.y) / rayDirection.y else std.math.floatMax(f32),
+            if (rayDirection.z != 0) (nextVoxelBoundary.z - rayStart.z) / rayDirection.z else std.math.floatMax(f32)
         );
-        var tDelta = Vec3.Init(
-            if (rayDirection.x != 0) 1 / (nextVoxelBoundary.x - currentVoxel.x) * step.x else std.math.floatMax(f32),
-            if (rayDirection.y != 0) 1 / (nextVoxelBoundary.y - currentVoxel.y) * step.y else std.math.floatMax(f32),
-            if (rayDirection.z != 0) 1 / (nextVoxelBoundary.z - currentVoxel.z) * step.z else std.math.floatMax(f32)
+        const tDelta = Vec3.Init(
+            if (rayDirection.x != 0) @abs(1 / rayDirection.x) else std.math.floatMax(f32),
+            if (rayDirection.y != 0) @abs(1 / rayDirection.y) else std.math.floatMax(f32),
+            if (rayDirection.z != 0) @abs(1 / rayDirection.z) else std.math.floatMax(f32)
         );
+
+        var voxelHits = std.ArrayList(Vec3).init(allocator);
+        try voxelHits.append(currentVoxel);
+
+        while (!std.meta.eql(endVoxel, currentVoxel)) {
+            // TODO: move multiple directions if 2 tMax are equal
+            if (tMax.x <= tMax.y and tMax.x <= tMax.z) {
+                currentVoxel.x += step.x;
+                tMax.x += tDelta.x;
+            } else if (tMax.y <= tMax.x and tMax.y <= tMax.z) {
+                currentVoxel.y += step.y;
+                tMax.y += tDelta.y;
+            } else if (tMax.z <= tMax.x and tMax.z <= tMax.y) {
+                currentVoxel.z += step.z;
+                tMax.z += tDelta.z;
+            }
+            try voxelHits.append(currentVoxel);
+        }
+
+        return voxelHits.toOwnedSlice();
     }
 };
 
@@ -110,6 +140,36 @@ fn part1By2(operand: u32) u6 {
     x = (x | (x << 4)) & 0b100011;
     x = (x | (x << 2)) & 0b100100;
     return x;
+}
+
+test "getIntersectionsWithRay" {
+    const testing = std.testing;
+    const allocator = testing.allocator;
+
+    var storage = try VoxelDataStorage.init(&allocator); defer storage.deinit();
+
+    // const hits = try storage.getIntersectionsWithRay(allocator, Vec3.Init(3.5, 3.5, 3.5), Vec3.Init(0.5, 0.5, 0.5)); defer allocator.free(hits);
+    // try testing.expectEqual(4, hits.len);
+    // try testing.expectEqual(Vec3.Init(3, 3, 3), hits[0]);
+    // try testing.expectEqual(Vec3.Init(2, 2, 2), hits[1]);
+    // try testing.expectEqual(Vec3.Init(1, 1, 1), hits[2]);
+    // try testing.expectEqual(Vec3.Init(0, 0, 0), hits[3]);
+
+    const hits2 = try storage.getIntersectionsWithRay(allocator, Vec3.Init(0, 0, 0), Vec3.Init(2, 0, 0)); defer allocator.free(hits2);
+    try testing.expectEqual(3, hits2.len);
+    try testing.expectEqual(Vec3.Init(0, 0, 0), hits2[0]);
+    try testing.expectEqual(Vec3.Init(1, 0, 0), hits2[1]);
+    try testing.expectEqual(Vec3.Init(2, 0, 0), hits2[2]);
+
+    const hits3 = try storage.getIntersectionsWithRay(allocator, Vec3.Init(0.25, 0, 0), Vec3.Init(3.5, 3.25, 0)); defer allocator.free(hits3);
+    try testing.expectEqual(7, hits3.len);
+    try testing.expectEqual(Vec3.Init(0, 0, 0), hits3[0]);
+    try testing.expectEqual(Vec3.Init(1, 0, 0), hits3[1]);
+    try testing.expectEqual(Vec3.Init(1, 1, 0), hits3[2]);
+    try testing.expectEqual(Vec3.Init(2, 1, 0), hits3[3]);
+    try testing.expectEqual(Vec3.Init(2, 2, 0), hits3[4]);
+    try testing.expectEqual(Vec3.Init(3, 2, 0), hits3[5]);
+    try testing.expectEqual(Vec3.Init(3, 3, 0), hits3[6]);
 }
 
 test "insertData" {
