@@ -38,23 +38,26 @@ bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition,  fl
     if (tNear <= 0.0 || tNear >= tFar)
 		return false;
 		
-	entryHit.point = rayOrigin + tNear * rayDirection;
+	const float epsilon = 1e-4;
+
+	entryHit.point = clamp(rayOrigin + tNear * rayDirection, minBound, maxBound - vec3(epsilon));
 	entryHit.distance = length(abs(entryHit.point - rayOrigin));
 
-	if (abs(entryHit.point.x - minBound.x) < 0.001)
+	if (abs(entryHit.point.x - minBound.x) < epsilon)
 		entryHit.normal = vec3(-1.0, 0.0, 0.0);
-	else if (abs(entryHit.point.x - maxBound.x) < 0.001)
+	else if (abs(entryHit.point.x - maxBound.x) < epsilon)
 		entryHit.normal = vec3(1.0, 0.0, 0.0);
-	else if (abs(entryHit.point.y - minBound.y) < 0.001)
+	else if (abs(entryHit.point.y - minBound.y) < epsilon)
 		entryHit.normal = vec3(0.0, -1.0, 0.0);
-	else if (abs(entryHit.point.y - maxBound.y) < 0.001)
+	else if (abs(entryHit.point.y - maxBound.y) < epsilon)
 		entryHit.normal = vec3(0.0, 1.0, 0.0);
-	else if (abs(entryHit.point.z - minBound.z) < 0.001)
+	else if (abs(entryHit.point.z - minBound.z) < epsilon)
 		entryHit.normal = vec3(0.0, 0.0, -1.0);
-	else if (abs(entryHit.point.z - maxBound.z) < 0.001)
+	else if (abs(entryHit.point.z - maxBound.z) < epsilon)
 		entryHit.normal = vec3(0.0, 0.0, 1.0);
 
-	exitHit.point = rayOrigin + tFar * rayDirection;
+	exitHit.point = clamp(rayOrigin + tFar * rayDirection, minBound, maxBound - vec3(epsilon));
+
 	// exitHit distance and normal will never be needed
 	// no need to calculate them
 
@@ -76,8 +79,30 @@ uvec3 mortonToVec3(uint mortonCode) {
     );
 }
 
+uint part1By2(uint x) {
+	x = (x | (x << 4)) & 35;
+	x = (x | (x << 2)) & 36;
+	return x;
+}
+
+uint vec3ToMorton(uvec3 v) {
+	return part1By2(v.x) | part1By2(v.y) >> 1 | part1By2(v.z) >> 2;
+}
+
+uint bitCount64(uint64_t value) {
+    uint lowBits = uint(value & 0xFFFFFFFFu);
+    uint highBits = uint(value >> 32u);
+    return bitCount(lowBits) + bitCount(highBits);
+}
+
 void main() {
     vec4 color = vec4(0, 0, 0, 1.0);
+	vec4[3] colors = vec4[3](
+		vec4(1, 0, 0, 1),
+		vec4(0, 1, 0, 1),
+		vec4(0, 0, 1, 1)
+	);
+
 	ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
 
 	ivec2 viewportSize = imageSize(viewport);
@@ -98,72 +123,129 @@ void main() {
 		- cameraUp * -(float(pixelCoord.y * 2 - viewportSize.y) / viewportSize.y);
 	vec3 rayDirection = normalize(rayOrigin - cameraPosition);
 
+	RayCastHit brickRayEntryHit;
+	RayCastHit brickRayExitHit;
+	
 	bool hit = false;
-	vec3 hitFaceNormal;
-	RayCastHit voxelEntryHit;
-	RayCastHit voxelExitHit;
+	vec3 hitNormal;
 
-	RayCastHit closestVoxelHit;
-	closestVoxelHit.distance = 1.0 / 0.0;
+	if (rayIntersectsCube(rayOrigin, rayDirection, vec3(0), 4, brickRayEntryHit, brickRayExitHit)) {
+		uvec3 currentVoxel = uvec3(floor(brickRayEntryHit.point));
+		vec3 endVoxel = floor(brickRayExitHit.point);
 
-	uint closestDataIndex = 0;
+		vec3 rayThroughBrick = brickRayExitHit.point - brickRayEntryHit.point;
+		vec3 rayThroughBrickDirection = normalize(rayThroughBrick);
 
-	uint64_t morton = header;
-	uint dataIndex = 0;
+		vec3 steps = sign(rayThroughBrick);
+		vec3 nextVoxelBoundary = vec3(
+			currentVoxel.x + steps.x > 0 ? steps.x : 0,
+			currentVoxel.y + steps.y > 0 ? steps.y : 0,
+			currentVoxel.z + steps.z > 0 ? steps.z : 0
+		);
 
-	for (uint i = 0; morton != 0; i++) {
-		
-		bool hasVoxel = bool(morton & 1);
-		morton >>= 1;
+		vec3 tMax = vec3(
+			rayThroughBrickDirection.x != 0.0 ? (nextVoxelBoundary.x - brickRayEntryHit.point.x) / rayThroughBrickDirection.x : 1.0 / 0,
+			rayThroughBrickDirection.y != 0.0 ? (nextVoxelBoundary.y - brickRayEntryHit.point.y) / rayThroughBrickDirection.y : 1.0 / 0,
+			rayThroughBrickDirection.z != 0.0 ? (nextVoxelBoundary.z - brickRayEntryHit.point.z) / rayThroughBrickDirection.z : 1.0 / 0
+		);
 
-		if (!hasVoxel) 
-			continue;
+		vec3 tDelta = vec3(
+			rayThroughBrickDirection.x != 0.0 ? abs(1.0 / rayThroughBrickDirection.x) : 1.0 / 0,
+			rayThroughBrickDirection.y != 0.0 ? abs(1.0 / rayThroughBrickDirection.y) : 1.0 / 0,
+			rayThroughBrickDirection.z != 0.0 ? abs(1.0 / rayThroughBrickDirection.z) : 1.0 / 0
+		);
 
-		vec3 voxelPosition = mortonToVec3(i);
+		uint morton = vec3ToMorton(currentVoxel);
+		bool hasVoxel = bool((header >> morton) & 1);
 
-		if (rayIntersectsCube(rayOrigin, rayDirection, voxelPosition, 1, voxelEntryHit, voxelExitHit)) {
+
+		if (hasVoxel) {
+			uint dataIndex = bitCount64(header & ((1 << (morton + 1) - 1)));
+			uint8_t data = voxelData[dataIndex];
+			//color = colors[data];
+			// TODO: if alpha, keep going and add color
 			hit = true;
-			if (voxelEntryHit.distance < closestVoxelHit.distance) {
-				closestVoxelHit = voxelEntryHit;
-				closestDataIndex = dataIndex;
+
+			hitNormal = vec3(0.0);
+			if (tMax.x < tMax.y && tMax.x < tMax.z)
+				hitNormal.x = -steps.x;
+			else if (tMax.y < tMax.x && tMax.y < tMax.z)
+				hitNormal.y = -steps.y;
+			else
+				hitNormal.z = -steps.z;
+		} else {
+			bool pp = currentVoxel != endVoxel;
+			color.b = (pp == true ? 1.0 : 0.0);
+			while (pp == true) {
+				uint aa=0;
+				aa+=1;
+				color.g = 1.0;
+				// int minAxis = tMax.x <= tMax.y && tMax.x <= tMax.z ? 0 : (tMax.y <= tMax.x && tMax.y <= tMax.z ? 1 : 2); // TODO: not needed most likely
+				// float minTMax = min(min(tMax.x, tMax.y), tMax.z);
+
+				// if (tMax.x == minTMax) {
+				// 	currentVoxel.x += steps.x;
+				// 	tMax.x += tDelta.x;
+				// }
+				// if (tMax.y == minTMax) {
+				// 	currentVoxel.y += steps.y;
+				// 	tMax.y += tDelta.y;
+				// }
+				// if (tMax.z == minTMax) {
+				// 	currentVoxel.z += steps.z;
+				// 	tMax.z += tDelta.z;
+				// }
+				
+				// uint morton = vec3ToMorton(currentVoxel);
+				// bool hasVoxel = bool((header >> morton) & 1);
+
+				// if (!hasVoxel)
+				// 	continue;
+
+				// uint dataIndex = bitCount64(header & ((1 << (morton + 1) - 1)));
+				// uint8_t data = voxelData[dataIndex];
+				// //color = colors[data];
+
+				// // TODO: if alpha, keep going and add color
+				// hit = true;
+
+				// hitNormal = vec3(0.0);
+				// if (minAxis == 0)
+				// 	hitNormal.x = -steps.x;
+				// else if (minAxis == 1)
+				// 	hitNormal.y = -steps.y;
+				// else
+				// 	hitNormal.z = -steps.z;
+
+				// break;
 			}
 		}
-
-		dataIndex++;
 	}
 
-	vec4[3] colors = vec4[3](
-		vec4(1, 0, 0, 1),
-		vec4(0, 1, 0, 1),
-		vec4(0, 0, 1, 1)
-	);
+	// if (hit) {
+	// 	// lighting
+	// 	// https://math.hws.edu/graphicsbook/c7/s2.html
 
-	if (hit) {
-		uint8_t data = voxelData[closestDataIndex];
-		color = colors[data];
+	// 	vec4 lightColor = vec4(vec3(1), 1); // r g b intensity
+	// 	vec3 invLightDirection = normalize(vec3(-1, 1.5, 0.4));
+	// 	float specularIntensity = 0.3;
+	// 	float specularExponent = 5;
 
-		// lighting
-		// https://math.hws.edu/graphicsbook/c7/s2.html
+	// 	float dotln = dot(invLightDirection, hitNormal);
+	// 	if (dotln <= 0)
+	// 		color = vec4(vec3(0), 1);
+	// 	else {
+	// 		// diffusion
+	// 		color.rgb = (color * lightColor * dotln).rgb * lightColor.a;
 
-		vec4 lightColor = vec4(vec3(1), 1); // r g b intensity
-		vec3 invLightDirection = normalize(vec3(-1, 1.5, 0.4));
-		float specularIntensity = 0.3;
-		float specularExponent = 5;
-
-		float dotln = dot(invLightDirection, closestVoxelHit.normal);
-		if (dotln <= 0)
-			color = vec4(vec3(0), 1);
-		else {
-			// diffusion
-			color.rgb = (color * lightColor * dotln).rgb * lightColor.a;
-
-			// specular
-			vec3 lightReflectionDirection = reflect(invLightDirection * -1, closestVoxelHit.normal);
-			float i = dot(lightReflectionDirection, rayDirection * -1);
-			if (i > 0)
-				color.rgb += specularIntensity * pow(i, specularExponent) * lightColor.rgb;
-		}
-	}
-
+	// 		// specular
+	// 		vec3 lightReflectionDirection = reflect(invLightDirection * -1, hitNormal);
+	// 		float i = dot(lightReflectionDirection, rayDirection * -1);
+	// 		if (i > 0)
+	// 			color.rgb += specularIntensity * pow(i, specularExponent) * lightColor.rgb;
+	// 	}
+	// }
+	
+//	color.b = hit ? 1.0:0.0;
 	imageStore(viewport, pixelCoord, color);
 }
