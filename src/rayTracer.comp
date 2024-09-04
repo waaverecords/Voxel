@@ -131,12 +131,12 @@ void main() {
 
 	if (rayIntersectsCube(rayOrigin, rayDirection, vec3(0), 4, brickRayEntryHit, brickRayExitHit)) {
 		uvec3 currentVoxel = uvec3(floor(brickRayEntryHit.point));
-		vec3 endVoxel = floor(brickRayExitHit.point);
+		uvec3 endVoxel = uvec3(floor(brickRayExitHit.point));
 
 		vec3 rayThroughBrick = brickRayExitHit.point - brickRayEntryHit.point;
 		vec3 rayThroughBrickDirection = normalize(rayThroughBrick);
 
-		vec3 steps = sign(rayThroughBrick);
+		ivec3 steps = ivec3(sign(rayThroughBrick));
 		vec3 nextVoxelBoundary = vec3(
 			currentVoxel.x + steps.x > 0 ? steps.x : 0,
 			currentVoxel.y + steps.y > 0 ? steps.y : 0,
@@ -158,7 +158,6 @@ void main() {
 		uint morton = vec3ToMorton(currentVoxel);
 		bool hasVoxel = bool((header >> morton) & 1);
 
-
 		if (hasVoxel) {
 			uint dataIndex = bitCount64(header & ((1 << (morton + 1) - 1)));
 			uint8_t data = voxelData[dataIndex];
@@ -174,40 +173,42 @@ void main() {
 			else
 				hitNormal.z = -steps.z;
 		} else {
-			bool pp = currentVoxel != endVoxel;
-			color.b = (pp == true ? 1.0 : 0.0);
-			while (pp == true) {
-				uint aa=0;
-				aa+=1;
-				color.g = 1.0;
-				// int minAxis = tMax.x <= tMax.y && tMax.x <= tMax.z ? 0 : (tMax.y <= tMax.x && tMax.y <= tMax.z ? 1 : 2); // TODO: not needed most likely
-				// float minTMax = min(min(tMax.x, tMax.y), tMax.z);
+			uint ii = 0;
+			while (ii < 12) {
 
-				// if (tMax.x == minTMax) {
-				// 	currentVoxel.x += steps.x;
-				// 	tMax.x += tDelta.x;
-				// }
-				// if (tMax.y == minTMax) {
-				// 	currentVoxel.y += steps.y;
-				// 	tMax.y += tDelta.y;
-				// }
-				// if (tMax.z == minTMax) {
-				// 	currentVoxel.z += steps.z;
-				// 	tMax.z += tDelta.z;
-				// }
+				if (currentVoxel == endVoxel)
+					break;
+
+				ii+= 1;
+
+				int minAxis = tMax.x <= tMax.y && tMax.x <= tMax.z ? 0 : (tMax.y <= tMax.x && tMax.y <= tMax.z ? 1 : 2); // TODO: not needed most likely
+				float minTMax = min(min(tMax.x, tMax.y), tMax.z);
+
+				if (tMax.x == minTMax) {
+				 	currentVoxel.x += steps.x;
+				 	tMax.x += tDelta.x;
+				}
+				if (tMax.y == minTMax) {
+					currentVoxel.y += steps.y;
+					tMax.y += tDelta.y;
+				}
+				if (tMax.z == minTMax) {
+					currentVoxel.z += steps.z;
+					tMax.z += tDelta.z;
+				}
 				
-				// uint morton = vec3ToMorton(currentVoxel);
-				// bool hasVoxel = bool((header >> morton) & 1);
+				uint morton = vec3ToMorton(currentVoxel);
+				bool hasVoxel = bool((header >> morton) & 1);
 
-				// if (!hasVoxel)
-				// 	continue;
+				if (!hasVoxel)
+					continue;
 
-				// uint dataIndex = bitCount64(header & ((1 << (morton + 1) - 1)));
-				// uint8_t data = voxelData[dataIndex];
-				// //color = colors[data];
+				uint dataIndex = bitCount64(header & ((1 << (morton + 1) - 1)));
+				uint8_t data = voxelData[dataIndex];
+				//color = colors[data];
 
-				// // TODO: if alpha, keep going and add color
-				// hit = true;
+				// TODO: if alpha, keep going and add color
+				hit = true;
 
 				// hitNormal = vec3(0.0);
 				// if (minAxis == 0)
@@ -217,7 +218,7 @@ void main() {
 				// else
 				// 	hitNormal.z = -steps.z;
 
-				// break;
+				break;
 			}
 		}
 	}
@@ -246,6 +247,6 @@ void main() {
 	// 	}
 	// }
 	
-//	color.b = hit ? 1.0:0.0;
+	color.r = hit?1.0:0.0;
 	imageStore(viewport, pixelCoord, color);
 }
