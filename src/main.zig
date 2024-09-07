@@ -253,6 +253,8 @@ pub fn main() !void {
 
     var voxelStorage = try VoxelDataStorage.init(&allocator); defer voxelStorage.deinit();
     try voxelStorage.setData(0, &math.Vec3.Init(0, 0, 0));
+    try voxelStorage.setData(1, &math.Vec3.Init(3, 3, 0));
+    try voxelStorage.setData(2, &math.Vec3.Init(3, 3, 3));
 
     var SSBO2: gl.uint = 0;
 

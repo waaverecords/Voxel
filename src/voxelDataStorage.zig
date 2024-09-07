@@ -48,7 +48,7 @@ pub const VoxelDataStorage = struct {
         
         const mask = if (morton == 63) std.math.maxInt(u64) else (@as(u64, 1) << (morton + 1)) - 1;
         const bitCount = @popCount(newHeader & mask);
-        const dataIndex = headerByteCount + if (bitCount > 0) bitCount - 1 else 0;
+        const dataIndex = headerByteCount + @max(0, bitCount - 1);
         
         const hasData = this.header.* & hasDataMask > 0;
         if (hasData) {

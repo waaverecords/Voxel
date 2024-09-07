@@ -155,56 +155,18 @@ void main() {
 			rayThroughBrickDirection.z != 0.0 ? abs(1.0 / rayThroughBrickDirection.z) : 1.0 / 0
 		);
 
-		uint morton = vec3ToMorton(currentVoxel);
-		bool hasVoxel = bool((header >> morton) & 1);
+		uint ii = 0;
+		while (ii < 100) {
+			
+			ii+= 1;
 
-		if (hasVoxel) {
-			uint dataIndex = bitCount64(header & ((1 << (morton + 1) - 1)));
-			uint8_t data = voxelData[dataIndex];
-			color = colors[data];
-			// TODO: if alpha, keep going and add color
-			hit = true;
-
-			hitNormal = vec3(0.0);
-			if (tMax.x < tMax.y && tMax.x < tMax.z)
-				hitNormal.x = -steps.x;
-			else if (tMax.y < tMax.x && tMax.y < tMax.z)
-				hitNormal.y = steps.y;
-			else
-				hitNormal.z = steps.z;
-		} else {
-			uint ii = 0;
-			while (ii < 100) {
-				
-				// TODO: try to use condition in while
-				if (currentVoxel == endVoxel)
-					break;
-
-				ii+= 1;
-
-				int minAxis = tMax.x <= tMax.y && tMax.x <= tMax.z ? 0 : (tMax.y <= tMax.x && tMax.y <= tMax.z ? 1 : 2); // TODO: not needed most likely
-				float minTMax = min(min(tMax.x, tMax.y), tMax.z);
-
-				if (tMax.x == minTMax) {
-				 	currentVoxel.x = uint(currentVoxel.x + steps.x);
-				 	tMax.x += tDelta.x;
-				}
-				if (tMax.y == minTMax) {
-					currentVoxel.y = uint(currentVoxel.y+ steps.y);
-					tMax.y += tDelta.y;
-				}
-				if (tMax.z == minTMax) {
-					currentVoxel.z = uint(currentVoxel.z + steps.z);
-					tMax.z += tDelta.z;
-				}
-
-				uint morton = vec3ToMorton(currentVoxel);
-				bool hasVoxel = bool((header >> morton) & 1);
-				
-				if (!hasVoxel)
-					continue;
-
-				uint dataIndex = bitCount64(header & ((1 << (morton + 1) - 1)));
+			uint morton = vec3ToMorton(currentVoxel);
+			bool hasVoxel = bool((header >> morton) & 1);
+			
+			if (hasVoxel) {
+				uint64_t mask = morton  == 63 ? 18446744073709551615UL : (1UL << (morton + 1)) - 1;
+				uint bitCount = bitCount64(header & mask);
+				uint dataIndex = max(0, bitCount - 1);
 				uint8_t data = voxelData[dataIndex];
 				color = colors[data];
 
@@ -212,6 +174,7 @@ void main() {
 				hit = true;
 
 				hitNormal = vec3(0.0);
+				int minAxis = tMax.x <= tMax.y && tMax.x <= tMax.z ? 0 : (tMax.y <= tMax.x && tMax.y <= tMax.z ? 1 : 2); // TODO: not needed most likely
 				// TODO: fix normals
 				if (minAxis == 0)
 					hitNormal.x = -steps.x;
@@ -221,6 +184,25 @@ void main() {
 					hitNormal.z = -steps.z;
 
 				break;
+			}
+
+			// TODO: try to use condition in while
+			if (currentVoxel == endVoxel)
+				break;
+
+			float minTMax = min(min(tMax.x, tMax.y), tMax.z);
+
+			if (tMax.x == minTMax) {
+				currentVoxel.x = currentVoxel.x + steps.x;
+				tMax.x += tDelta.x;
+			}
+			if (tMax.y == minTMax) {
+				currentVoxel.y = currentVoxel.y+ steps.y;
+				tMax.y += tDelta.y;
+			}
+			if (tMax.z == minTMax) {
+				currentVoxel.z = currentVoxel.z + steps.z;
+				tMax.z += tDelta.z;
 			}
 		}
 	}
@@ -248,6 +230,6 @@ void main() {
 				color.rgb += specularIntensity * pow(i, specularExponent) * lightColor.rgb;
 		}
 	}
-	
+
 	imageStore(viewport, pixelCoord, color);
 }
