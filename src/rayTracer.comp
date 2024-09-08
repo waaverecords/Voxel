@@ -38,25 +38,26 @@ bool rayIntersectsCube(vec3 rayOrigin, vec3 rayDirection, vec3 cubePosition,  fl
     if (tNear <= 0.0 || tNear >= tFar)
 		return false;
 		
-	const float epsilon = 1e-4;
+	const float epsilon1 = 1e-5;
+	const float epsilon2 = 1e-6;
 
-	entryHit.point = clamp(rayOrigin + tNear * rayDirection, minBound, maxBound - vec3(epsilon));
+	entryHit.point = clamp(rayOrigin + tNear * rayDirection, minBound, maxBound - epsilon2);
 	entryHit.distance = length(abs(entryHit.point - rayOrigin));
 
-	if (abs(entryHit.point.x - minBound.x) < epsilon)
+	if (abs(entryHit.point.x - minBound.x) < epsilon1)
 		entryHit.normal = vec3(-1.0, 0.0, 0.0);
-	else if (abs(entryHit.point.x - maxBound.x) < epsilon)
+	else if (abs(entryHit.point.x - maxBound.x) < epsilon1)
 		entryHit.normal = vec3(1.0, 0.0, 0.0);
-	else if (abs(entryHit.point.y - minBound.y) < epsilon)
+	else if (abs(entryHit.point.y - minBound.y) < epsilon1)
 		entryHit.normal = vec3(0.0, -1.0, 0.0);
-	else if (abs(entryHit.point.y - maxBound.y) < epsilon)
+	else if (abs(entryHit.point.y - maxBound.y) < epsilon1)
 		entryHit.normal = vec3(0.0, 1.0, 0.0);
-	else if (abs(entryHit.point.z - minBound.z) < epsilon)
+	else if (abs(entryHit.point.z - minBound.z) < epsilon1)
 		entryHit.normal = vec3(0.0, 0.0, -1.0);
-	else if (abs(entryHit.point.z - maxBound.z) < epsilon)
+	else if (abs(entryHit.point.z - maxBound.z) < epsilon1)
 		entryHit.normal = vec3(0.0, 0.0, 1.0);
 
-	exitHit.point = clamp(rayOrigin + tFar * rayDirection, minBound, maxBound - vec3(epsilon));
+	exitHit.point = clamp(rayOrigin + tFar * rayDirection, minBound, maxBound - epsilon2);
 
 	// exitHit distance and normal will never be needed
 	// no need to calculate them
@@ -156,7 +157,7 @@ void main() {
 		);
 
 		uint ii = 0;
-		while (ii < 100) {
+		while (ii < 10) {
 			
 			ii+= 1;
 
@@ -173,15 +174,9 @@ void main() {
 				// TODO: if alpha, keep going and add color
 				hit = true;
 
-				hitNormal = vec3(0.0);
-				int minAxis = tMax.x <= tMax.y && tMax.x <= tMax.z ? 0 : (tMax.y <= tMax.x && tMax.y <= tMax.z ? 1 : 2); // TODO: not needed most likely
-				// TODO: fix normals
-				if (minAxis == 0)
-					hitNormal.x = -steps.x;
-				else if (minAxis == 1)
-					hitNormal.y = -steps.y;
-				else
-					hitNormal.z = -steps.z;
+				// TODO: can use current vars instead of calling function?
+				rayIntersectsCube(rayOrigin, rayDirection, currentVoxel, 1, brickRayEntryHit, brickRayExitHit);
+				hitNormal = brickRayEntryHit.normal;
 
 				break;
 			}
@@ -230,6 +225,6 @@ void main() {
 				color.rgb += specularIntensity * pow(i, specularExponent) * lightColor.rgb;
 		}
 	}
-
+	
 	imageStore(viewport, pixelCoord, color);
 }
