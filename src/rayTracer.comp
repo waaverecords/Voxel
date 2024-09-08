@@ -99,7 +99,7 @@ uint bitCount64(uint64_t value) {
 void main() {
     vec4 color = vec4(0, 0, 0, 1.0);
 	vec4[3] colors = vec4[3](
-		vec4(1, 0, 0, 1),
+		vec4(1, 0, 0, 0.2),
 		vec4(0, 1, 0, 1),
 		vec4(0, 0, 1, 1)
 	);
@@ -165,20 +165,23 @@ void main() {
 			bool hasVoxel = bool((header >> morton) & 1);
 			
 			if (hasVoxel) {
+
+				if (!hit) {
+					// TODO: can use current vars instead of calling function?
+					rayIntersectsCube(rayOrigin, rayDirection, currentVoxel, 1, brickRayEntryHit, brickRayExitHit);
+					hitNormal = brickRayEntryHit.normal;
+					hit = true;
+				}
+
 				uint64_t mask = morton  == 63 ? 18446744073709551615UL : (1UL << (morton + 1)) - 1;
 				uint bitCount = bitCount64(header & mask);
 				uint dataIndex = max(0, bitCount - 1);
 				uint8_t data = voxelData[dataIndex];
-				color = colors[data];
+				vec4 voxelColor = colors[data];
+				color += voxelColor * voxelColor.a;
 
-				// TODO: if alpha, keep going and add color
-				hit = true;
-
-				// TODO: can use current vars instead of calling function?
-				rayIntersectsCube(rayOrigin, rayDirection, currentVoxel, 1, brickRayEntryHit, brickRayExitHit);
-				hitNormal = brickRayEntryHit.normal;
-
-				break;
+				if (voxelColor.a == 1.0)
+					break;
 			}
 
 			// TODO: try to use condition in while
@@ -200,6 +203,7 @@ void main() {
 				tMax.z += tDelta.z;
 			}
 		}
+
 	}
 
 	if (hit) {
