@@ -129,6 +129,7 @@ void main() {
 	
 	bool hit = false;
 	vec3 hitNormal;
+	vec4 firstHitColor;
 
 	if (rayIntersectsCube(rayOrigin, rayDirection, vec3(0), 4, brickRayEntryHit, brickRayExitHit)) {
 		uvec3 currentVoxel = uvec3(floor(brickRayEntryHit.point));
@@ -166,19 +167,20 @@ void main() {
 			
 			if (hasVoxel) {
 
-				if (!hit) {
-					// TODO: can use current vars instead of calling function?
-					rayIntersectsCube(rayOrigin, rayDirection, currentVoxel, 1, brickRayEntryHit, brickRayExitHit);
-					hitNormal = brickRayEntryHit.normal;
-					hit = true;
-				}
-
 				uint64_t mask = morton  == 63 ? 18446744073709551615UL : (1UL << (morton + 1)) - 1;
 				uint bitCount = bitCount64(header & mask);
 				uint dataIndex = max(0, bitCount - 1);
 				uint8_t data = voxelData[dataIndex];
 				vec4 voxelColor = colors[data];
-				color += voxelColor * voxelColor.a;
+				color.rgb += voxelColor.rgb * voxelColor.a;
+
+				if (!hit) {
+					// TODO: can use current vars instead of calling function?
+					rayIntersectsCube(rayOrigin, rayDirection, currentVoxel, 1, brickRayEntryHit, brickRayExitHit);
+					hitNormal = brickRayEntryHit.normal;
+					hit = true;
+					firstHitColor = voxelColor;
+				}
 
 				if (voxelColor.a == 1.0)
 					break;
@@ -216,12 +218,15 @@ void main() {
 		float specularExponent = 5;
 
 		float dotln = dot(invLightDirection, hitNormal);
-		if (dotln <= 0)
-			color = vec4(vec3(0), 1);
-		else {
-			// diffusion
-			color.rgb = (color * lightColor * dotln).rgb * lightColor.a;
+		bool facingLight = dotln > 0;
 
+		// hit by light or not
+		color.rgb *= int(firstHitColor.a < 1 || facingLight);
+
+		// diffusion
+		color.rgb = (color * lightColor * abs(dotln)).rgb * lightColor.a;
+
+		if (facingLight) {
 			// specular
 			vec3 lightReflectionDirection = reflect(invLightDirection * -1, hitNormal);
 			float i = dot(lightReflectionDirection, rayDirection * -1);
